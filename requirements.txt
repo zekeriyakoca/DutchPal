@@ -1,0 +1,16 @@
+fastapi
+pydantic
+httpx
+sqlalchemy
+pgvector
+python-dotenv
+openai
+spacy
+tqdm
+logfire
+pydantic-ai
+pillow
+pytesseract
+numpy
+streamlit
+requests
