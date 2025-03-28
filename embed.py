@@ -8,6 +8,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from pgvector.sqlalchemy import Vector
 from typing import List
 
@@ -45,6 +46,7 @@ class Sentence(Base):
     section_id = Column(Integer, ForeignKey("sections.id"), nullable=False)
     text = Column(Text, nullable=False)
     embedding = Column(Vector(1536), nullable=False)
+    text_search_vector = Column(TSVECTOR)
     book = relationship("Book", back_populates="sentences")
     section = relationship("Section", back_populates="sentences")
 

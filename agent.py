@@ -99,7 +99,7 @@ async def find_sentences(ctx: RunContext[Deps], text: str, limit: int = 1, book_
         ORDER BY s.embedding <-> CAST(:embedding AS vector)
         LIMIT :limit
     """
-
+    
     result = db.execute(
         sql_text(base_sql),
         {"embedding": vector_str, "book_id": book_id, "limit": limit}
@@ -110,6 +110,31 @@ async def find_sentences(ctx: RunContext[Deps], text: str, limit: int = 1, book_
         return ", ".join(sentences)
     
     return "No similar sentence found."
+
+@language_agent.tool
+async def find_sentence_containing_word(ctx: RunContext[Deps], word: str, limit: int = 1, book_id: int = None) -> str:
+    """Find all sentences from the embedded Dutch books that include the word x, optionally filtered by book title. Return x number of matching sentences."""
+    db = ctx.deps.db
+
+    base_sql = """
+        SELECT s.text AS sentence
+        FROM sentences s
+        WHERE to_tsvector('dutch', s.text) @@ plainto_tsquery('dutch', :search)
+        AND (:book_id IS NULL OR s.book_id = :book_id)
+        ORDER BY RANDOM()
+        LIMIT :limit
+    """
+
+    result = db.execute(
+        sql_text(base_sql),
+        {"search": word, "book_id": book_id, "limit": limit}
+    ).fetchall()
+
+    if result:
+        sentences = [row.sentence for row in result]
+        return ", ".join(sentences)
+    
+    return "No sentence found including the word."
 
 @language_agent.tool
 async def get_vocabularies(
