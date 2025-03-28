@@ -1,6 +1,9 @@
 import os
 from PIL import Image
+from PyPDF2 import PdfReader
 import pytesseract
+import pdfplumber
+from pdf2image import convert_from_path
 import openai
 
 # Config
@@ -48,15 +51,56 @@ Raw OCR Text:
     )
     return response.choices[0].message.content.strip()
 
-
-# 📘 Loop over books
+def is_text_based_pdf(path: str) -> bool:
+    try:
+        reader = PdfReader(path)
+        for page in reader.pages:
+            text = page.extract_text()
+            if text and any(c.isalpha() for c in text):
+                return True
+        return False
+    except Exception:
+        return False
+    
+# 📘 Loop over files in books folder
 for book_name in os.listdir(BOOKS_DIR):
     book_path = os.path.join(BOOKS_DIR, book_name)
+
+    # Handle PDF files
+    if book_name.lower().endswith(".pdf"):
+        output_path = os.path.join(OUTPUT_DIR, f"{os.path.splitext(book_name)[0]}.md")
+        print(f"📘 Processing PDF: {book_name}")
+
+        with open(output_path, "w", encoding="utf-8") as out:
+            if is_text_based_pdf(book_path):
+                print("  ✅ Detected text-based PDF. Using text extraction...")
+                with pdfplumber.open(book_path) as pdf:
+                    for i, page in enumerate(pdf.pages):
+                        raw_text = page.extract_text()
+                        if raw_text and raw_text.strip():
+                            print(f"  📄 Formatting page {i + 1}...")
+                            md_text = ai_format_markdown(raw_text)
+                            out.write(md_text + "\n\n")
+            else:
+                print("  🔍 Detected scanned PDF. Using OCR...")
+                pages = convert_from_path(book_path, dpi=300)
+                for i, page in enumerate(pages):
+                    print(f"  🖼️ OCR'ing scanned page {i + 1}/{len(pages)}...")
+                    raw_text = pytesseract.image_to_string(page, lang=LANGS)
+                    if raw_text.strip():
+                        raw_text = clean_ocr_text(raw_text)
+                        md_text = ai_format_markdown(raw_text)
+                        out.write(md_text + "\n\n")
+
+        print(f"✅ Saved: {output_path}")
+        continue
+
+    # Handle image folders (existing logic)
     if not os.path.isdir(book_path):
         continue
 
     output_path = os.path.join(OUTPUT_DIR, f"{book_name}.md")
-    print(f"📘 Processing book: {book_name}")
+    print(f"📘 Processing image folder: {book_name}")
 
     with open(output_path, "w", encoding="utf-8") as out:
         for image_file in sorted(os.listdir(book_path)):
@@ -64,11 +108,10 @@ for book_name in os.listdir(BOOKS_DIR):
                 continue
 
             image_path = os.path.join(book_path, image_file)
-            print(f"  🖼️ OCR'ing page: {image_file}")
+            print(f"  🖼️ OCR'ing image: {image_file}")
             raw_text = pytesseract.image_to_string(Image.open(image_path), lang=LANGS)
 
             if raw_text.strip():
-                print(f"    ✨ Sending to OpenAI for markdown formatting...")
                 raw_text = clean_ocr_text(raw_text)
                 md_text = ai_format_markdown(raw_text)
                 out.write(md_text + "\n\n")

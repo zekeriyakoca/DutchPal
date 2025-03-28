@@ -1,6 +1,7 @@
 import os
 import re
 import spacy
+import string
 import openai
 from sqlalchemy import (
     create_engine, Column, Integer, String, Text, Float,
@@ -95,8 +96,10 @@ class LanguageProcessor:
         return None  # Placeholder — replace with real level logic
 
 def upsert_vocab(processor: LanguageProcessor, session, text: str):
+    SKIP_POS = {"PROPN", "DET", "PRON", "CCONJ", "SCONJ", "ADP", "PART", "INTJ", "PUNCT", "SYM", "NUM", "X"}
+
     for lemma, pos in processor.extract_vocab(text):
-        if pos == "PROPN":
+        if pos in SKIP_POS:
             continue
 
         existing = session.query(Vocabulary).filter_by(lemma=lemma, pos=pos).first()
@@ -134,6 +137,9 @@ def process_book(processor: LanguageProcessor, session, file_path: str, book_tit
         session.flush()
 
         for sentence_text in processor.extract_sentences(section_content):
+            if not is_sentence_valuable(sentence_text, processor):
+                continue
+            
             sentence_embedding = processor.generate_embedding(sentence_text)
             sentence = Sentence(
                 book_id=book.id,
@@ -192,7 +198,45 @@ def update_cefr_levels_batched(session, batch_size=100):
     session.commit()
     print("🎉 All CEFR levels updated.")
 
+def is_sentence_valuable(sentence: str, processor: LanguageProcessor) -> bool:
+    sentence = sentence.strip().lower()
+    
+    # Early rejection for empty or punctuation-only sentences
+    if not sentence or all(char in string.punctuation for char in sentence):
+        return False
+    
+    words = sentence.split()
+    if len(words) < 4:
+        return False
+    
+    # Remove trivial expressions
+    skip_phrases = {
+        "hey", "yay", "oké", "hoi", "dag", "ik ben", "het is goed",
+        "dat klopt", "geen idee", "niet echt"
+    }
+    if sentence in skip_phrases:
+        return False
 
+    # Skip if contains digits and is short
+    if any(char.isdigit() for char in sentence) and len(words) <= 4:
+        return False
+
+    # Skip if it's just one capitalized word (likely a name/place)
+    if len(words) == 1 and words[0][0].isupper():
+        return False
+
+    # Tokenization & POS tagging
+    tokens = processor.extract_tokens(sentence)
+    
+    has_verb = any(t.pos in {"VERB", "AUX"} for t in tokens)
+    has_valuable_vocab = any(t.pos in {"NOUN", "VERB", "ADJ", "ADV"} for t in tokens)
+
+    # Skip if it's mostly stop words (e.g. "in de tuin van de buurman")
+    non_stop_tokens = [t for t in tokens if not t.is_stop and t.pos not in {"DET", "ADP", "PRON", "SCONJ", "CCONJ", "PART"}]
+    if len(non_stop_tokens) < 2:
+        return False
+
+    return has_verb and has_valuable_vocab
 
 def main():
     DATABASE_URL = os.getenv("DATABASE_URL")
