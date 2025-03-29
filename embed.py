@@ -46,7 +46,8 @@ class Sentence(Base):
     book_id = Column(Integer, ForeignKey("books.id"), nullable=False)
     section_id = Column(Integer, ForeignKey("sections.id"), nullable=False)
     text = Column(Text, nullable=False)
-    embedding = Column(Vector(1536), nullable=False)
+    cefr_level = Column(String, nullable=True)
+    embedding = Column(Vector(1536), nullable=True)
     text_search_vector = Column(TSVECTOR)
     book = relationship("Book", back_populates="sentences")
     section = relationship("Section", back_populates="sentences")
@@ -56,7 +57,7 @@ class Vocabulary(Base):
     id = Column(Integer, primary_key=True)
     lemma = Column(String, nullable=False)
     pos = Column(String, nullable=False)
-    cefr_level = Column(String)
+    cefr_level = Column(String, nullable=True)
     encounter_count = Column(Integer, default=1)
     embedding = Column(Vector(1536), nullable=False)
     __table_args__ = (UniqueConstraint("lemma", "pos", name="_lemma_pos_uc"),)
@@ -93,7 +94,10 @@ class LanguageProcessor:
                 yield token.lemma_, token.pos_
 
     def estimate_cefr(self, word: str) -> str:
-        return None  # Placeholder — replace with real level logic
+        return None 
+    
+    def extract_tokens(self, text: str):
+        return self.nlp(text) # Placeholder — replace with real level logic
 
 def upsert_vocab(processor: LanguageProcessor, session, text: str):
     SKIP_POS = {"PROPN", "DET", "PRON", "CCONJ", "SCONJ", "ADP", "PART", "INTJ", "PUNCT", "SYM", "NUM", "X"}
@@ -139,7 +143,7 @@ def process_book(processor: LanguageProcessor, session, file_path: str, book_tit
         for sentence_text in processor.extract_sentences(section_content):
             if not is_sentence_valuable(sentence_text, processor):
                 continue
-            
+
             sentence_embedding = processor.generate_embedding(sentence_text)
             sentence = Sentence(
                 book_id=book.id,
@@ -153,7 +157,7 @@ def process_book(processor: LanguageProcessor, session, file_path: str, book_tit
     session.commit()
     print(f"✅ {book_title}")
 
-def update_cefr_levels_batched(session, batch_size=100):
+def update_vocabulary_cefr_levels_batched(session, batch_size=100):
     vocab_entries = session.query(Vocabulary).filter(Vocabulary.cefr_level == None).all()
     print(f"🔍 Found {len(vocab_entries)} vocabulary entries to update.")
 
@@ -198,6 +202,58 @@ def update_cefr_levels_batched(session, batch_size=100):
     session.commit()
     print("🎉 All CEFR levels updated.")
 
+def update_sentences_cefr_levels_batched(session, batch_size=20):
+    sentences = session.query(Sentence).filter(Sentence.cefr_level == None).all()
+    print(f"🔍 Found {len(sentences)} sentences to update.")
+
+    for i in tqdm(range(0, len(sentences), batch_size)):
+        batch = sentences[i:i + batch_size]
+        
+        prompt_lines = [
+            "You are a Dutch language teacher.",
+            "Determine the CEFR level (A1 to C2) for each of the following Dutch sentences.",
+            "Respond ONLY in valid JSON format like this: {\"Levels\": [\"A1\", \"B1\", \"A2\"]}.",
+            "Sentences:"
+        ]
+
+        for idx, entry in enumerate(batch, start=1):
+            prompt_lines.append(f"{idx}. {entry.text.strip()}")
+
+        prompt = "\n".join(prompt_lines)
+
+        try:
+            response = openai.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a Dutch language teacher."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0,
+                max_tokens=1500  # You can adjust depending on sentence length
+            )
+            content = response.choices[0].message.content.strip()
+            
+            print(f"🔁 Raw response:\n{content}\n")
+
+            # Parse the JSON response
+            cefr_levels = json.loads(content).get("Levels", [])
+
+            if len(cefr_levels) != len(batch):
+                print(f"⚠️ Mismatch in levels count at batch starting index {i}: expected {len(batch)}, got {len(cefr_levels)}")
+                continue
+
+            for sentence, level in zip(batch, cefr_levels):
+                if level in ["A1", "A2", "B1", "B2", "C1", "C2"]:
+                    sentence.cefr_level = level
+                else:
+                    print(f"⚠️ Invalid CEFR level for sentence '{sentence.text}': {level}")
+
+        except Exception as e:
+            print(f"❌ Error in batch starting at index {i}: {e}")
+
+    session.commit()
+    print("🎉 All CEFR sentence levels updated.")
+
 def is_sentence_valuable(sentence: str, processor: LanguageProcessor) -> bool:
     sentence = sentence.strip().lower()
     
@@ -206,7 +262,7 @@ def is_sentence_valuable(sentence: str, processor: LanguageProcessor) -> bool:
         return False
     
     words = sentence.split()
-    if len(words) < 4:
+    if len(words) < 3:
         return False
     
     # Remove trivial expressions
@@ -218,7 +274,7 @@ def is_sentence_valuable(sentence: str, processor: LanguageProcessor) -> bool:
         return False
 
     # Skip if contains digits and is short
-    if any(char.isdigit() for char in sentence) and len(words) <= 4:
+    if any(char.isdigit() for char in sentence) and len(words) <= 7:
         return False
 
     # Skip if it's just one capitalized word (likely a name/place)
@@ -228,15 +284,17 @@ def is_sentence_valuable(sentence: str, processor: LanguageProcessor) -> bool:
     # Tokenization & POS tagging
     tokens = processor.extract_tokens(sentence)
     
-    has_verb = any(t.pos in {"VERB", "AUX"} for t in tokens)
-    has_valuable_vocab = any(t.pos in {"NOUN", "VERB", "ADJ", "ADV"} for t in tokens)
+    # POS integer values based on Universal POS
+    VALID_SUBJECT_POS = {92, 95, 96}     # NOUN, PRON, PROPN
+    VALID_VERB_POS = {87, 100}           # AUX, VERB
+    REQUIRED_CONTENT_POS = {92, 96}      # NOUN, PROPN (to avoid floating verbs like "Ben daar")
 
-    # Skip if it's mostly stop words (e.g. "in de tuin van de buurman")
-    non_stop_tokens = [t for t in tokens if not t.is_stop and t.pos not in {"DET", "ADP", "PRON", "SCONJ", "CCONJ", "PART"}]
-    if len(non_stop_tokens) < 2:
-        return False
+    has_subject = any(t.pos in VALID_SUBJECT_POS for t in tokens)
+    has_action = any(t.pos in VALID_VERB_POS for t in tokens)
+    has_real_content = any(t.pos in REQUIRED_CONTENT_POS for t in tokens)
 
-    return has_verb and has_valuable_vocab
+    # Sentence must have all 3: subject, verb, and meaningful noun/proper noun
+    return has_subject and has_action and has_real_content
 
 def main():
     DATABASE_URL = os.getenv("DATABASE_URL")
@@ -246,13 +304,14 @@ def main():
     session = Session()
     processor = LanguageProcessor()
 
-    for filename in os.listdir("data"):
-        if filename.endswith(".md"):
-            title = filename.replace(".md", "")
-            file_path = os.path.join("data", filename)
-            process_book(processor, session, file_path, title, language="Dutch")
+    # for filename in os.listdir("data"):
+    #     if filename.endswith(".md"):
+    #         title = filename.replace(".md", "")
+    #         file_path = os.path.join("data", filename)
+    #         process_book(processor, session, file_path, title, language="Dutch")
     
-    update_cefr_levels_batched(session)
+    # update_vocabulary_cefr_levels_batched(session)
+    update_sentences_cefr_levels_batched(session)
 
 if __name__ == "__main__":
     main()

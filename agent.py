@@ -35,6 +35,7 @@ language_agent = Agent(
     " Use a warm, conversational tone, and explain things clearly and gently."
     " Sprinkle in light humor or fun examples when helpful — think of yourself as a patient teacher with a smile."
     " Respond only using Markdown formatting. Include headings, bullet points, tables, and **bold** text where appropriate."
+    "**Do not wrap the entire response in triple backticks or any code block.** Just return valid Markdown content directly."
     ),
     deps_type=Deps,
     retries=2,
@@ -53,7 +54,8 @@ def parse_embedding(text: str) -> list[float]:
 
 @language_agent.tool
 async def find_lesson(ctx: RunContext[Deps], text: str) -> str:
-    """Find the most relevant lesson from the embedded Dutch books."""
+    """Find the most relevant lesson from the embedded Dutch books. Does embedding similarity search."""
+    
     # Generate the embedding for the question
     embedded = openai.embeddings.create(
         model="text-embedding-ada-002",
@@ -80,8 +82,8 @@ async def find_lesson(ctx: RunContext[Deps], text: str) -> str:
     return "No relevant lesson found."
 
 @language_agent.tool
-async def find_sentences(ctx: RunContext[Deps], text: str, limit: int = 1, book_id: int = None) -> str:
-    """Find the most similar sentences from the embedded Dutch books, optionally filtered by book title. Get x number of similar sentences."""
+async def find_sentences(ctx: RunContext[Deps], text: str, limit: int = 1, book_id: int = None, cefr_level: str = 'ALL LEVELS') -> str:
+    """Find the most similar sentences from the embedded Dutch books, optionally filtered by book and CEFR level."""
     # Generate the embedding for the question
     embedded = openai.embeddings.create(
         model="text-embedding-ada-002",
@@ -91,25 +93,31 @@ async def find_sentences(ctx: RunContext[Deps], text: str, limit: int = 1, book_
     vector_str = f"[{', '.join(map(str, embedded))}]"
     db = ctx.deps.db
 
-    # Build SQL dynamically based on whether book_title is provided
     base_sql = """
         SELECT s.text AS sentence
         FROM sentences s
         WHERE (:book_id IS NULL OR s.book_id = :book_id)
+          AND (:cefr_level = 'ALL LEVELS' OR s.cefr_level = :cefr_level)
         ORDER BY s.embedding <-> CAST(:embedding AS vector)
         LIMIT :limit
     """
-    
+
     result = db.execute(
         sql_text(base_sql),
-        {"embedding": vector_str, "book_id": book_id, "limit": limit}
+        {
+            "embedding": vector_str,
+            "book_id": book_id,
+            "cefr_level": cefr_level,
+            "limit": limit
+        }
     ).fetchall()
 
     if result:
         sentences = [row.sentence for row in result]
         return ", ".join(sentences)
-    
+
     return "No similar sentence found."
+
 
 @language_agent.tool
 async def find_sentence_containing_word(ctx: RunContext[Deps], word: str, limit: int = 1, book_id: int = None) -> str:
@@ -135,6 +143,48 @@ async def find_sentence_containing_word(ctx: RunContext[Deps], word: str, limit:
         return ", ".join(sentences)
     
     return "No sentence found including the word."
+
+@language_agent.tool
+async def get_random_sentences(
+    ctx: RunContext[Deps],
+    limit: int = 1,
+    book_id: int = None,
+    cefr_level: str = 'ALL LEVELS'
+) -> str:
+    """
+    Retrieve random Dutch sentences from the dataset.
+
+    Optional filters:
+    - `book_id`: Limit results to a specific book.
+    - `cefr_level`: Limit results to a specific CEFR level (e.g., A1, B2).
+
+    Returns a comma-separated list of random sentence texts.
+    """
+
+    db = ctx.deps.db
+
+    sql = """
+        SELECT s.text AS sentence
+        FROM sentences s
+        WHERE (:book_id IS NULL OR s.book_id = :book_id)
+          AND (:cefr_level = 'ALL LEVELS' OR s.cefr_level = :cefr_level)
+        ORDER BY RANDOM()
+        LIMIT :limit
+    """
+
+    params = {
+        "book_id": book_id,
+        "cefr_level": cefr_level,
+        "limit": limit
+    }
+
+    result = db.execute(sql_text(sql), params).fetchall()
+
+    if result:
+        sentences = [row.sentence for row in result]
+        return ", ".join(sentences)
+
+    return "No random sentences found."
 
 @language_agent.tool
 async def get_vocabularies(
