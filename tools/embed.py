@@ -4,8 +4,14 @@ import spacy
 import string
 import openai
 from sqlalchemy import (
-    create_engine, Column, Integer, String, Text, Float,
-    ForeignKey, UniqueConstraint
+    create_engine,
+    Column,
+    Integer,
+    String,
+    Text,
+    Float,
+    ForeignKey,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
@@ -21,6 +27,7 @@ load_dotenv()
 
 Base = declarative_base()
 
+
 class Book(Base):
     __tablename__ = "books"
     id = Column(Integer, primary_key=True)
@@ -29,6 +36,7 @@ class Book(Base):
     cefr_level = Column(String)
     sections = relationship("Section", back_populates="book")
     sentences = relationship("Sentence", back_populates="book")
+
 
 class Section(Base):
     __tablename__ = "sections"
@@ -39,6 +47,7 @@ class Section(Base):
     embedding = Column(Vector(1536), nullable=False)
     book = relationship("Book", back_populates="sections")
     sentences = relationship("Sentence", back_populates="section")
+
 
 class Sentence(Base):
     __tablename__ = "sentences"
@@ -52,6 +61,7 @@ class Sentence(Base):
     book = relationship("Book", back_populates="sentences")
     section = relationship("Section", back_populates="sentences")
 
+
 class Vocabulary(Base):
     __tablename__ = "vocabulary"
     id = Column(Integer, primary_key=True)
@@ -62,16 +72,14 @@ class Vocabulary(Base):
     embedding = Column(Vector(1536), nullable=False)
     __table_args__ = (UniqueConstraint("lemma", "pos", name="_lemma_pos_uc"),)
 
+
 class LanguageProcessor:
-    def __init__(self, language_model='nl_core_news_sm'):
+    def __init__(self, language_model="nl_core_news_sm"):
         self.nlp = spacy.load(language_model)
         openai.api_key = os.getenv("OPENAI_API_KEY")
 
     def generate_embedding(self, text: str) -> List[float]:
-        response = openai.embeddings.create(
-            model="text-embedding-ada-002",
-            input=text
-        )
+        response = openai.embeddings.create(model="text-embedding-ada-002", input=text)
         return response.data[0].embedding
 
     def is_valid_sentence(self, text: str) -> bool:
@@ -85,7 +93,11 @@ class LanguageProcessor:
         return True
 
     def extract_sentences(self, text: str) -> List[str]:
-        return [sent.text.strip() for sent in self.nlp(text).sents if self.is_valid_sentence(sent.text)]
+        return [
+            sent.text.strip()
+            for sent in self.nlp(text).sents
+            if self.is_valid_sentence(sent.text)
+        ]
 
     def extract_vocab(self, text: str):
         doc = self.nlp(text)
@@ -94,13 +106,27 @@ class LanguageProcessor:
                 yield token.lemma_, token.pos_
 
     def estimate_cefr(self, word: str) -> str:
-        return None 
-    
+        return None
+
     def extract_tokens(self, text: str):
-        return self.nlp(text) # Placeholder — replace with real level logic
+        return self.nlp(text)  # Placeholder — replace with real level logic
+
 
 def upsert_vocab(processor: LanguageProcessor, session, text: str):
-    SKIP_POS = {"PROPN", "DET", "PRON", "CCONJ", "SCONJ", "ADP", "PART", "INTJ", "PUNCT", "SYM", "NUM", "X"}
+    SKIP_POS = {
+        "PROPN",
+        "DET",
+        "PRON",
+        "CCONJ",
+        "SCONJ",
+        "ADP",
+        "PART",
+        "INTJ",
+        "PUNCT",
+        "SYM",
+        "NUM",
+        "X",
+    }
 
     for lemma, pos in processor.extract_vocab(text):
         if pos in SKIP_POS:
@@ -116,11 +142,24 @@ def upsert_vocab(processor: LanguageProcessor, session, text: str):
                 pos=pos,
                 cefr_level=processor.estimate_cefr(lemma),
                 encounter_count=1,
-                embedding=embedding
+                embedding=embedding,
             )
             session.add(vocab)
 
-def process_book(processor: LanguageProcessor, session, file_path: str, book_title: str, language: str):
+
+def process_book(
+    processor: LanguageProcessor,
+    session,
+    file_path: str,
+    book_title: str,
+    language: str,
+):
+
+    print(f"📖 Processing book: {book_title}")
+    if session.query(Book).filter_by(title=book_title).first():
+        print(f"⚠️ Book '{book_title}' already exists in the database.")
+        return
+
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
 
@@ -135,7 +174,7 @@ def process_book(processor: LanguageProcessor, session, file_path: str, book_tit
             book_id=book.id,
             title=section_title,
             content=section_content,
-            embedding=section_embedding
+            embedding=section_embedding,
         )
         session.add(section)
         session.flush()
@@ -149,7 +188,7 @@ def process_book(processor: LanguageProcessor, session, file_path: str, book_tit
                 book_id=book.id,
                 section_id=section.id,
                 text=sentence_text,
-                embedding=sentence_embedding
+                embedding=sentence_embedding,
             )
             session.add(sentence)
             upsert_vocab(processor, session, sentence_text)
@@ -157,21 +196,24 @@ def process_book(processor: LanguageProcessor, session, file_path: str, book_tit
     session.commit()
     print(f"✅ {book_title}")
 
+
 def update_vocabulary_cefr_levels_batched(session, batch_size=100):
-    vocab_entries = session.query(Vocabulary).filter(Vocabulary.cefr_level == None).all()
+    vocab_entries = (
+        session.query(Vocabulary).filter(Vocabulary.cefr_level == None).all()
+    )
     print(f"🔍 Found {len(vocab_entries)} vocabulary entries to update.")
 
     for i in tqdm(range(0, len(vocab_entries), batch_size)):
-        batch = vocab_entries[i:i + batch_size]
-        
+        batch = vocab_entries[i : i + batch_size]
+
         prompt_lines = [
             "You are a Dutch language teacher.",
             "What are the CEFR levels (A1 to C2) for the following 100 Dutch words with their part of speech?",
-            "Respond in JSON format like: {\"huis\": \"A1\", \"lopen\": \"A2\", ...}"
+            'Respond in JSON format like: {"huis": "A1", "lopen": "A2", ...}',
         ]
         for entry in batch:
             prompt_lines.append(f"{entry.lemma} ({entry.pos})")
-        
+
         prompt = "\n".join(prompt_lines)
 
         try:
@@ -179,10 +221,10 @@ def update_vocabulary_cefr_levels_batched(session, batch_size=100):
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a Dutch language teacher."},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": prompt},
                 ],
                 temperature=0,
-                max_tokens=1000  # You can increase if needed
+                max_tokens=1000,  # You can increase if needed
             )
             content = response.choices[0].message.content.strip()
 
@@ -194,7 +236,9 @@ def update_vocabulary_cefr_levels_batched(session, batch_size=100):
                 if level in ["A1", "A2", "B1", "B2", "C1", "C2"]:
                     entry.cefr_level = level
                 else:
-                    print(f"⚠️ No CEFR level found for {entry.lemma} or invalid: {level}")
+                    print(
+                        f"⚠️ No CEFR level found for {entry.lemma} or invalid: {level}"
+                    )
 
         except Exception as e:
             print(f"❌ Error in batch starting at index {i}: {e}")
@@ -202,18 +246,19 @@ def update_vocabulary_cefr_levels_batched(session, batch_size=100):
     session.commit()
     print("🎉 All CEFR levels updated.")
 
+
 def update_sentences_cefr_levels_batched(session, batch_size=20):
     sentences = session.query(Sentence).filter(Sentence.cefr_level == None).all()
     print(f"🔍 Found {len(sentences)} sentences to update.")
 
     for i in tqdm(range(0, len(sentences), batch_size)):
-        batch = sentences[i:i + batch_size]
-        
+        batch = sentences[i : i + batch_size]
+
         prompt_lines = [
             "You are a Dutch language teacher.",
             "Determine the CEFR level (A1 to C2) for each of the following Dutch sentences.",
-            "Respond ONLY in valid JSON format like this: {\"Levels\": [\"A1\", \"B1\", \"A2\"]}.",
-            "Sentences:"
+            'Respond ONLY in valid JSON format like this: {"Levels": ["A1", "B1", "A2"]}.',
+            "Sentences:",
         ]
 
         for idx, entry in enumerate(batch, start=1):
@@ -226,27 +271,31 @@ def update_sentences_cefr_levels_batched(session, batch_size=20):
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a Dutch language teacher."},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": prompt},
                 ],
                 temperature=0,
-                max_tokens=1500  # You can adjust depending on sentence length
+                max_tokens=1500,  # You can adjust depending on sentence length
             )
             content = response.choices[0].message.content.strip()
-            
+
             print(f"🔁 Raw response:\n{content}\n")
 
             # Parse the JSON response
             cefr_levels = json.loads(content).get("Levels", [])
 
             if len(cefr_levels) != len(batch):
-                print(f"⚠️ Mismatch in levels count at batch starting index {i}: expected {len(batch)}, got {len(cefr_levels)}")
+                print(
+                    f"⚠️ Mismatch in levels count at batch starting index {i}: expected {len(batch)}, got {len(cefr_levels)}"
+                )
                 continue
 
             for sentence, level in zip(batch, cefr_levels):
                 if level in ["A1", "A2", "B1", "B2", "C1", "C2"]:
                     sentence.cefr_level = level
                 else:
-                    print(f"⚠️ Invalid CEFR level for sentence '{sentence.text}': {level}")
+                    print(
+                        f"⚠️ Invalid CEFR level for sentence '{sentence.text}': {level}"
+                    )
 
         except Exception as e:
             print(f"❌ Error in batch starting at index {i}: {e}")
@@ -254,21 +303,30 @@ def update_sentences_cefr_levels_batched(session, batch_size=20):
     session.commit()
     print("🎉 All CEFR sentence levels updated.")
 
+
 def is_sentence_valuable(sentence: str, processor: LanguageProcessor) -> bool:
     sentence = sentence.strip().lower()
-    
+
     # Early rejection for empty or punctuation-only sentences
     if not sentence or all(char in string.punctuation for char in sentence):
         return False
-    
+
     words = sentence.split()
     if len(words) < 3:
         return False
-    
+
     # Remove trivial expressions
     skip_phrases = {
-        "hey", "yay", "oké", "hoi", "dag", "ik ben", "het is goed",
-        "dat klopt", "geen idee", "niet echt"
+        "hey",
+        "yay",
+        "oké",
+        "hoi",
+        "dag",
+        "ik ben",
+        "het is goed",
+        "dat klopt",
+        "geen idee",
+        "niet echt",
     }
     if sentence in skip_phrases:
         return False
@@ -283,11 +341,14 @@ def is_sentence_valuable(sentence: str, processor: LanguageProcessor) -> bool:
 
     # Tokenization & POS tagging
     tokens = processor.extract_tokens(sentence)
-    
+
     # POS integer values based on Universal POS
-    VALID_SUBJECT_POS = {92, 95, 96}     # NOUN, PRON, PROPN
-    VALID_VERB_POS = {87, 100}           # AUX, VERB
-    REQUIRED_CONTENT_POS = {92, 96}      # NOUN, PROPN (to avoid floating verbs like "Ben daar")
+    VALID_SUBJECT_POS = {92, 95, 96}  # NOUN, PRON, PROPN
+    VALID_VERB_POS = {87, 100}  # AUX, VERB
+    REQUIRED_CONTENT_POS = {
+        92,
+        96,
+    }  # NOUN, PROPN (to avoid floating verbs like "Ben daar")
 
     has_subject = any(t.pos in VALID_SUBJECT_POS for t in tokens)
     has_action = any(t.pos in VALID_VERB_POS for t in tokens)
@@ -295,6 +356,7 @@ def is_sentence_valuable(sentence: str, processor: LanguageProcessor) -> bool:
 
     # Sentence must have all 3: subject, verb, and meaningful noun/proper noun
     return has_subject and has_action and has_real_content
+
 
 def main():
     DATABASE_URL = os.getenv("DATABASE_URL")
@@ -304,14 +366,15 @@ def main():
     session = Session()
     processor = LanguageProcessor()
 
-    # for filename in os.listdir("data"):
-    #     if filename.endswith(".md"):
-    #         title = filename.replace(".md", "")
-    #         file_path = os.path.join("data", filename)
-    #         process_book(processor, session, file_path, title, language="Dutch")
-    
-    # update_vocabulary_cefr_levels_batched(session)
+    for filename in os.listdir("data"):
+        if filename.endswith(".md"):
+            title = filename.replace(".md", "")
+            file_path = os.path.join("data", filename)
+            process_book(processor, session, file_path, title, language="Dutch")
+
+    update_vocabulary_cefr_levels_batched(session)
     update_sentences_cefr_levels_batched(session)
+
 
 if __name__ == "__main__":
     main()

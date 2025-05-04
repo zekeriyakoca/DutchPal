@@ -178,3 +178,9 @@ books/
 data/
 
 .vscode/
+
+repo-for-books/
+
+reading-books/
+
+.DS_Store

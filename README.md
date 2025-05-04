@@ -28,3 +28,11 @@ uvicorn main:app --reload
 ```bash
 streamlit run ui.py
 ```
+
+---
+
+## 📂 Tools and Utilities
+
+The project includes a variety of tools and utilities for processing, analyzing, and enhancing Dutch language learning materials. These tools handle tasks such as OCR, embedding generation, grammar processing, and interaction with AI models.
+
+For detailed information about the tools, check out the [Tools README](tools/README.md).

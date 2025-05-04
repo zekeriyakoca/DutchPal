@@ -15,3 +15,7 @@ numpy
 streamlit
 requests
 psycopg2-binary
+uvicorn
+PyPDF2
+pdfplumber
+pdf2image
