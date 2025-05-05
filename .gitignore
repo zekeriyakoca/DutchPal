@@ -184,3 +184,5 @@ repo-for-books/
 reading-books/
 
 .DS_Store
+
+docs/Deployment-to-local-k8s.md

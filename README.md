@@ -36,3 +36,9 @@ streamlit run ui.py
 The project includes a variety of tools and utilities for processing, analyzing, and enhancing Dutch language learning materials. These tools handle tasks such as OCR, embedding generation, grammar processing, and interaction with AI models.
 
 For detailed information about the tools, check out the [Tools README](tools/README.md).
+
+## Deployment to Local Server
+
+For detailed instructions on deploying the FastAPI application to a local Kubernetes cluster, refer to the [Deployment to Local Kubernetes Guide](docs/Deployment-to-local-k8s.md).
+
+> **Note**: The `Deployment-to-local-k8s.md` file is ignored in the repository (`.gitignore`) since this repository is public, and it may contain sensitive or environment-specific deployment details.

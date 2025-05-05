@@ -10,7 +10,10 @@ query = st.text_input("Your question:", placeholder="e.g., Translate 'Ik hou van
 if st.button("Ask"):
     if query:
         with st.spinner("Asking the assistant..."):
-            response = requests.post("http://localhost:8000/ask", json={"message": query, "page": "sentences"})
+            response = requests.post(
+                "http://localhost:40001/ask",
+                json={"message": query, "page": "sentences"},
+            )
             if response.ok:
                 st.markdown(response.json()["response"])
             else:
