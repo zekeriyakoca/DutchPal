@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import sentences, vocabulary, quiz, ask, chat, grammar, translate
+from routes import sentences, vocabulary, quiz, ask, chat, grammar, translate, bootstrap
 
 app = FastAPI(root_path="/dutchpal-api")
 
@@ -21,6 +21,7 @@ def health_check():
     return {"status": "ok"}
 
 
+app.include_router(bootstrap.router)
 app.include_router(chat.router)
 app.include_router(ask.router)
 app.include_router(sentences.router)
