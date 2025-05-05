@@ -6,7 +6,7 @@ app = FastAPI(root_path="/dutchpal-api")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:4200"],
+    allow_origins=["http://localhost:4200", "https://dutchpal.netlify.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -4,7 +4,8 @@ import cohere
 
 from dotenv import load_dotenv
 
-load_dotenv()
+env_file = ".env.production" if os.getenv("ENV") == "production" else ".env"
+load_dotenv(env_file)
 
 # Set your API keys via environment variables
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")  # for GPT-4 / DeepSeek

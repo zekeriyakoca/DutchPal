@@ -23,7 +23,8 @@ import json
 from tqdm import tqdm
 from dotenv import load_dotenv
 
-load_dotenv()
+env_file = ".env.production" if os.getenv("ENV") == "production" else ".env"
+load_dotenv(env_file)
 
 Base = declarative_base()
 

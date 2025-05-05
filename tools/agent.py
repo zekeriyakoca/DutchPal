@@ -14,7 +14,8 @@ from sqlalchemy.orm import sessionmaker
 from pydantic_ai import Agent, RunContext
 from dotenv import load_dotenv
 
-load_dotenv()
+env_file = ".env.production" if os.getenv("ENV") == "production" else ".env"
+load_dotenv(env_file)
 
 logfire.configure(token=os.getenv("LOGFIRE_TOKEN"))
 
@@ -23,23 +24,25 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
 
+
 @dataclass
 class Deps:
     client: AsyncClient
     db: Any  # SQLAlchemy session
 
+
 language_agent = Agent(
     "openai:gpt-4o",
     system_prompt=(
-    "You are a lively and friendly Dutch language learning assistant — like a smart, funny friend helping someone learn Dutch."
-    " Use a warm, conversational tone, and explain things clearly and gently."
-    " Sprinkle in light humor or fun examples when helpful — think of yourself as a patient teacher with a smile."
-    " Respond only using Markdown formatting. Include headings, bullet points, tables, and **bold** text where appropriate."
-    "**Do not wrap the entire response in triple backticks or any code block.** Just return valid Markdown content directly."
+        "You are a lively and friendly Dutch language learning assistant — like a smart, funny friend helping someone learn Dutch."
+        " Use a warm, conversational tone, and explain things clearly and gently."
+        " Sprinkle in light humor or fun examples when helpful — think of yourself as a patient teacher with a smile."
+        " Respond only using Markdown formatting. Include headings, bullet points, tables, and **bold** text where appropriate."
+        "**Do not wrap the entire response in triple backticks or any code block.** Just return valid Markdown content directly."
     ),
     deps_type=Deps,
     retries=2,
-    instrument=True
+    instrument=True,
 )
 
 
@@ -55,12 +58,16 @@ def parse_embedding(text: str) -> list[float]:
 @language_agent.tool
 async def find_lesson(ctx: RunContext[Deps], text: str) -> str:
     """Find the most relevant lesson from the embedded Dutch books. Does embedding similarity search."""
-    
+
     # Generate the embedding for the question
-    embedded = openai.embeddings.create(
-        model="text-embedding-ada-002",
-        input=text,
-    ).data[0].embedding
+    embedded = (
+        openai.embeddings.create(
+            model="text-embedding-ada-002",
+            input=text,
+        )
+        .data[0]
+        .embedding
+    )
 
     vector_str = f"[{', '.join(map(str, embedded))}]"
 
@@ -68,27 +75,40 @@ async def find_lesson(ctx: RunContext[Deps], text: str) -> str:
 
     # Query the database using pgvector cosine similarity
     result = db.execute(
-        sql_text("""
+        sql_text(
+            """
             SELECT title, content
             FROM sections
             ORDER BY embedding <-> CAST(:embedding AS vector)
             LIMIT 1
-        """),
-        {"embedding": vector_str}
+        """
+        ),
+        {"embedding": vector_str},
     ).fetchone()
 
     if result:
         return f"## {result.title}\n\n{result.content}"
     return "No relevant lesson found."
 
+
 @language_agent.tool
-async def find_sentences(ctx: RunContext[Deps], text: str, limit: int = 1, book_id: int = None, cefr_level: str = 'ALL LEVELS') -> str:
+async def find_sentences(
+    ctx: RunContext[Deps],
+    text: str,
+    limit: int = 1,
+    book_id: int = None,
+    cefr_level: str = "ALL LEVELS",
+) -> str:
     """Find the most similar sentences from the embedded Dutch books, optionally filtered by book and CEFR level."""
     # Generate the embedding for the question
-    embedded = openai.embeddings.create(
-        model="text-embedding-ada-002",
-        input=text,
-    ).data[0].embedding
+    embedded = (
+        openai.embeddings.create(
+            model="text-embedding-ada-002",
+            input=text,
+        )
+        .data[0]
+        .embedding
+    )
 
     vector_str = f"[{', '.join(map(str, embedded))}]"
     db = ctx.deps.db
@@ -108,8 +128,8 @@ async def find_sentences(ctx: RunContext[Deps], text: str, limit: int = 1, book_
             "embedding": vector_str,
             "book_id": book_id,
             "cefr_level": cefr_level,
-            "limit": limit
-        }
+            "limit": limit,
+        },
     ).fetchall()
 
     if result:
@@ -120,7 +140,9 @@ async def find_sentences(ctx: RunContext[Deps], text: str, limit: int = 1, book_
 
 
 @language_agent.tool
-async def find_sentence_containing_word(ctx: RunContext[Deps], word: str, limit: int = 1, book_id: int = None) -> str:
+async def find_sentence_containing_word(
+    ctx: RunContext[Deps], word: str, limit: int = 1, book_id: int = None
+) -> str:
     """Find all sentences from the embedded Dutch books that include the word x, optionally filtered by book title. Return x number of matching sentences."""
     db = ctx.deps.db
 
@@ -134,22 +156,22 @@ async def find_sentence_containing_word(ctx: RunContext[Deps], word: str, limit:
     """
 
     result = db.execute(
-        sql_text(base_sql),
-        {"search": word, "book_id": book_id, "limit": limit}
+        sql_text(base_sql), {"search": word, "book_id": book_id, "limit": limit}
     ).fetchall()
 
     if result:
         sentences = [row.sentence for row in result]
         return ", ".join(sentences)
-    
+
     return "No sentence found including the word."
+
 
 @language_agent.tool
 async def get_random_sentences(
     ctx: RunContext[Deps],
     limit: int = 1,
     book_id: int = None,
-    cefr_level: str = 'ALL LEVELS'
+    cefr_level: str = "ALL LEVELS",
 ) -> str:
     """
     Retrieve random Dutch sentences from the dataset.
@@ -172,11 +194,7 @@ async def get_random_sentences(
         LIMIT :limit
     """
 
-    params = {
-        "book_id": book_id,
-        "cefr_level": cefr_level,
-        "limit": limit
-    }
+    params = {"book_id": book_id, "cefr_level": cefr_level, "limit": limit}
 
     result = db.execute(sql_text(sql), params).fetchall()
 
@@ -186,13 +204,14 @@ async def get_random_sentences(
 
     return "No random sentences found."
 
+
 @language_agent.tool
 async def get_vocabularies(
     ctx: RunContext[Deps],
     text: str = None,
     limit: int = 1,
     cefr_level: str = None,
-    pos: str = None
+    pos: str = None,
 ) -> str:
     """
     Retrieve vocabulary words from the embedded Dutch books.
@@ -215,10 +234,14 @@ async def get_vocabularies(
 
     if text:
         # Generate embedding for semantic similarity
-        embedded = openai.embeddings.create(
-            model="text-embedding-ada-002",
-            input=text,
-        ).data[0].embedding
+        embedded = (
+            openai.embeddings.create(
+                model="text-embedding-ada-002",
+                input=text,
+            )
+            .data[0]
+            .embedding
+        )
         vector_str = f"[{', '.join(map(str, embedded))}]"
 
         sql = """
@@ -234,7 +257,7 @@ async def get_vocabularies(
             "embedding": vector_str,
             "cefr_level": cefr_level,
             "pos": pos,
-            "limit": limit
+            "limit": limit,
         }
     else:
         # Random vocab retrieval
@@ -247,11 +270,7 @@ async def get_vocabularies(
             LIMIT :limit
         """
 
-        params = {
-            "cefr_level": cefr_level,
-            "pos": pos,
-            "limit": limit
-        }
+        params = {"cefr_level": cefr_level, "pos": pos, "limit": limit}
 
     result = db.execute(sql_text(sql), params).fetchall()
 
@@ -271,18 +290,21 @@ async def find_book_id(ctx: RunContext[Deps], bookName: str) -> str:
 
     # Query the database using pgvector cosine similarity
     result = ctx.deps.db.execute(
-        sql_text("""
+        sql_text(
+            """
             SELECT title
             FROM books
             WHERE title = :bookName
             LIMIT 1
-        """),
-        {"bookName": bookName}
+        """
+        ),
+        {"bookName": bookName},
     ).fetchone()
 
     if result:
         return result.id
     return "No relevant book found."
+
 
 # no need to use this tool since agent can handle this task itself
 # @language_agent.tool
@@ -307,6 +329,7 @@ async def find_book_id(ctx: RunContext[Deps], bookName: str) -> str:
 #     )
 #     return response.json()['choices'][0]['message']['content'].strip()
 
+
 @language_agent.tool
 async def explain_grammar(ctx: RunContext[Deps], sentence: str) -> str:
     """Explain the grammar rules in the given Dutch sentence."""
@@ -316,14 +339,14 @@ async def explain_grammar(ctx: RunContext[Deps], sentence: str) -> str:
         "https://api.openai.com/v1/chat/completions",
         headers={
             "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         },
         json={
             "model": "gpt-3.5-turbo",
-            "messages": [{"role": "user", "content": prompt}]
-        }
+            "messages": [{"role": "user", "content": prompt}],
+        },
     )
-    return response.json()['choices'][0]['message']['content'].strip()
+    return response.json()["choices"][0]["message"]["content"].strip()
 
 
 async def main():
@@ -331,13 +354,12 @@ async def main():
         db = SessionLocal()
         deps = Deps(client=client, db=db)
         result = await language_agent.run(
-            "Explain me the 'geboren' giving the example sentences.",
-            deps=deps
+            "Explain me the 'geboren' giving the example sentences.", deps=deps
         )
         print("Response:\n", result.data)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())
-    
+
 __all__ = ["language_agent", "Deps", "SessionLocal"]

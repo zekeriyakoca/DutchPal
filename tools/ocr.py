@@ -24,7 +24,9 @@ READING_BOOKS_DIR = "reading-books"
 OUTPUT_DIR = "data"
 LANGS = "eng+deu+nl"
 
-load_dotenv()
+env_file = ".env.production" if os.getenv("ENV") == "production" else ".env"
+load_dotenv(env_file)
+
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")  # for GPT-4 / DeepSeek
 openai.api_key = OPENAI_API_KEY
 

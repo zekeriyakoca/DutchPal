@@ -19,6 +19,9 @@ spec:
         image: docker.io/zekeriyakoca/dutchpal-fastapi:latest
         ports:
         - containerPort: 40001
+        env:
+        - name: ENV
+          value: "production"
 ---
 apiVersion: v1
 kind: Service

@@ -1,9 +1,11 @@
 from markitdown import MarkItDown
 from openai import OpenAI
+import os
 
 from dotenv import load_dotenv
 
-load_dotenv()
+env_file = ".env.production" if os.getenv("ENV") == "production" else ".env"
+load_dotenv(env_file)
 
 # Playground for MarkItDown
 
