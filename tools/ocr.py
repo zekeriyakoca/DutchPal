@@ -4,6 +4,7 @@ from PyPDF2 import PdfReader
 import pytesseract
 import pdfplumber
 from pdf2image import convert_from_path
+
 from chat_with_ai import (
     chat_with_openai,
     chat_with_command_r_plus,
@@ -13,6 +14,7 @@ from chat_with_ai import (
     chat_with_openai_41_nano,
     chat_with_openai_o1,
 )
+
 from datetime import datetime
 import openai
 from book_specific_tools.grammar_in_use_processor import process_grammar_in_use_book
@@ -133,7 +135,7 @@ def ai_format_study_book_to_markdown(
         Preserve the order and wording of real sentences or content
         Format it into Markdown using # or ## or ### headers, lists, and spacing but don't add any extra titles or headers.
         Formatting rules:
-            Use # only for unit or section titles (e.g. “Unit 1, Les 2 ..., etc)
+            Use single # only for unit or section titles (e.g. “Unit 1, Les 2 ..., etc) (this will be like # Unit 1, # Lesson 2, etc)
         Do NOT invent or add any new content
         Do NOT guess missing words or rewrite anything
         If there is English translation of Dutch text, remove them. I only want to collect Dutch text.
@@ -145,7 +147,7 @@ def ai_format_study_book_to_markdown(
         {plain_text.strip()}
         \"\"\"
     """
-    response = chat_with_openai_4o_mini(prompt)
+    response = chat_with_openai_41_nano(prompt)
     print(f"formatting completed at {datetime.now().strftime('%M:%S')}")
 
     return response
@@ -252,5 +254,5 @@ def process_story_books():
                 print(f"✅ Saved: {output_md}")
 
 
-# process_language_books()
-process_story_books()
+process_language_books()
+# process_story_books()

@@ -164,12 +164,16 @@ def process_book(
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    sections = re.findall(r"## (.*?)\n(.*?)(?=\n## |\Z)", content, re.DOTALL)
+    sections = re.findall(r"# {1,2}(.*?)\n(.*?)(?=\n# {1,2}|\Z)", content, re.DOTALL)
+    print(f"🔍 Found {len(sections)} sections in {book_title}.")
+
     book = Book(title=book_title, language=language, cefr_level="A1")
     session.add(book)
     session.flush()
+    print("Book record added to db.")
 
     for section_title, section_content in sections:
+        print(f"🔍 Processing section: {section_title}")
         section_embedding = processor.generate_embedding(section_content)
         section = Section(
             book_id=book.id,
