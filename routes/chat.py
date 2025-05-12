@@ -5,8 +5,10 @@ from pydantic import BaseModel
 
 router = APIRouter()
 
+
 class ChatRequest(BaseModel):
     message: str  # raw chat input
+
 
 @router.post("/chat")
 async def chat(req: ChatRequest):

@@ -1,6 +1,5 @@
 from fastapi import APIRouter
-from httpx import AsyncClient
-from tools.agent import language_agent, SessionLocal, Deps
+from tools.agent import SessionLocal
 from pydantic import BaseModel
 from typing import Optional
 from services.app_service import (
