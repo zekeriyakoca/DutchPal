@@ -19,3 +19,4 @@ uvicorn
 PyPDF2
 pdfplumber
 pdf2image
+tabulate

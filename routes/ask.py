@@ -10,7 +10,7 @@ router = APIRouter()
 class QueryRequest(BaseModel):
     message: str
     page: str
-    level: str = "All Levels"
+    level: str = "ALL LEVELS"
     difficulty: int = 5
     number_of_entries: int = 1
     book_id: Optional[int] = None

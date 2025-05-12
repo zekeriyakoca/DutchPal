@@ -56,6 +56,7 @@ class Sentence(Base):
     book_id = Column(Integer, ForeignKey("books.id"), nullable=False)
     section_id = Column(Integer, ForeignKey("sections.id"), nullable=False)
     text = Column(Text, nullable=False)
+    translation = Column(String, nullable=True)
     cefr_level = Column(String, nullable=True)
     embedding = Column(Vector(1536), nullable=True)
     text_search_vector = Column(TSVECTOR)
@@ -71,6 +72,10 @@ class Vocabulary(Base):
     cefr_level = Column(String, nullable=True)
     encounter_count = Column(Integer, default=1)
     embedding = Column(Vector(1536), nullable=False)
+    infinitive = Column(String, nullable=True)
+    present_form = Column(String, nullable=True)
+    v2_form = Column(String, nullable=True)
+    v3_form = Column(String, nullable=True)
     __table_args__ = (UniqueConstraint("lemma", "pos", name="_lemma_pos_uc"),)
 
 
@@ -200,6 +205,60 @@ def process_book(
 
     session.commit()
     print(f"✅ {book_title}")
+
+
+def update_vocabulary_forms_batched(session, batch_size=50):
+    vocab_entries = (
+        session.query(Vocabulary)
+        .filter((Vocabulary.pos == "VERB") & (Vocabulary.present_form.is_(None)))
+        .all()
+    )
+    print(f"🔍 Found {len(vocab_entries)} vocabulary entries to update.")
+
+    for i in tqdm(range(0, len(vocab_entries), batch_size)):
+        batch = vocab_entries[i : i + batch_size]
+
+        prompt_lines = [
+            "You are a Dutch language teacher.",
+            f"Provide the Present, V2 (Past), and V3 (Past Participle) forms for the following {len(batch)} Dutch words along with their part of speech.",
+            'Respond in JSON format like: {"lopen": {"infinitive": "lopen", "present": "loop/loopt/lopen", "V2": "liep/liepen", "V3": "gelopen"}, ...}',
+        ]
+        for entry in batch:
+            prompt_lines.append(f"{entry.lemma} ({entry.pos})")
+
+        prompt = "\n".join(prompt_lines)
+
+        try:
+            response = openai.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a Dutch language teacher."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0,
+                max_tokens=3000,  # Adjust if needed
+            )
+            content = response.choices[0].message.content.strip()
+            print(f"🔁 Raw response:\n{content}\n")
+            # Parse JSON response
+            conjugations = json.loads(content)
+
+            for entry in batch:
+                forms = conjugations.get(entry.lemma)
+                if forms:
+                    entry.infinitive = forms.get("infinitive", "")
+                    entry.present_form = forms.get("present", "")
+                    entry.v2_form = forms.get("V2", "")
+                    entry.v3_form = forms.get("V3", "")
+                else:
+                    print(f"⚠️ No forms found for {entry.lemma}")
+
+            session.commit()
+
+        except Exception as e:
+            print(f"❌ Error in batch starting at index {i}: {e}")
+
+    print("🎉 All vocabulary forms updated.")
 
 
 def update_vocabulary_cefr_levels_batched(session, batch_size=100):
@@ -377,8 +436,9 @@ def main():
             file_path = os.path.join("data", filename)
             process_book(processor, session, file_path, title, language="Dutch")
 
-    update_vocabulary_cefr_levels_batched(session)
-    update_sentences_cefr_levels_batched(session)
+    # update_vocabulary_cefr_levels_batched(session)
+    update_vocabulary_forms_batched(session)
+    # update_sentences_cefr_levels_batched(session)
 
 
 if __name__ == "__main__":

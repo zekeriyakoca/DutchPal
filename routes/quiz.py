@@ -6,12 +6,14 @@ from typing import Optional
 
 router = APIRouter()
 
+
 class QuizRequest(BaseModel):
-    level: str = "All Levels"
+    level: str = "ALL LEVELS"
     difficulty: int = 5
     number_of_entries: int = 5
     book_id: Optional[int] = None
     quiz_type: Optional[str] = None  # e.g., "grammar", "vocab", etc.
+
 
 @router.post("/quiz")
 async def generate_quiz(req: QuizRequest):
@@ -20,7 +22,7 @@ async def generate_quiz(req: QuizRequest):
         difficulty=req.difficulty,
         number_of_entries=req.number_of_entries,
         book_id=req.book_id,
-        quiz_type=req.quiz_type
+        quiz_type=req.quiz_type,
     )
 
     async with AsyncClient() as client:
@@ -30,8 +32,18 @@ async def generate_quiz(req: QuizRequest):
         return {"response": result.data}
 
 
-def build_quiz_prompt(level: str, difficulty: int, number_of_entries: int, book_id: Optional[int], quiz_type: Optional[str]) -> str:
-    book_selection_directive = f"- Use words or examples from book ID {book_id} when possible.\n" if book_id else ""
+def build_quiz_prompt(
+    level: str,
+    difficulty: int,
+    number_of_entries: int,
+    book_id: Optional[int],
+    quiz_type: Optional[str],
+) -> str:
+    book_selection_directive = (
+        f"- Use words or examples from book ID {book_id} when possible.\n"
+        if book_id
+        else ""
+    )
 
     return f"""
     Generate a **Dutch {quiz_type} quiz**.

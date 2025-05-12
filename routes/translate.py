@@ -1,22 +1,20 @@
 from fastapi import APIRouter
 from httpx import AsyncClient
+from services.app_service import translate
 from tools.agent import language_agent, SessionLocal, Deps
 from pydantic import BaseModel
 
 router = APIRouter()
 
+
 class TranslateRequest(BaseModel):
     message: str  # the sentence to translate
 
+
 @router.post("/translate")
 async def translate_sentence(req: TranslateRequest):
-    prompt = build_translation_prompt(req.message)
-
-    async with AsyncClient() as client:
-        db = SessionLocal()
-        deps = Deps(client=client, db=db)
-        result = await language_agent.run(prompt, deps=deps)
-        return {"response": result.data}
+    response = await translate(req.message)
+    return {"response": response}
 
 
 def build_translation_prompt(sentence: str) -> str:

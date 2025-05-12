@@ -187,3 +187,5 @@ reading-books/
 
 docs/Deployment-to-local-k8s.md
 .env.production
+
+garbage/

@@ -13,6 +13,13 @@ from sqlalchemy import create_engine, text as sql_text
 from sqlalchemy.orm import sessionmaker
 from pydantic_ai import Agent, RunContext
 from dotenv import load_dotenv
+from services.app_service import (
+    find_lesson_by_name,
+    get_vocabularies,
+    find_book_id,
+    find_or_get_sentences,
+    find_sentence_containing_word,
+)
 
 env_file = ".env.production" if os.getenv("ENV") == "production" else ".env"
 load_dotenv(env_file)
@@ -36,7 +43,7 @@ system_prompt = (
     " Use a warm, conversational tone, and explain things clearly and gently."
     " Sprinkle in light humor or fun examples when helpful — think of yourself as a patient teacher with a smile."
     " Respond only using Markdown formatting. Include headings, bullet points, tables, and **bold** text where appropriate."
-    " Use your tools as much as you need to"
+    " Use your tools as much as you need to. Your first priority is to provide information from your dataset and tools and not to generate new content."
     "**Do not wrap the entire response in triple backticks or any code block.** Just return valid Markdown content directly."
 )
 
@@ -63,53 +70,14 @@ elif agent_model == "grok:llama4-scout":
     )
 
 
-def cosine_similarity(a: list[float], b: list[float]) -> float:
-    a, b = np.array(a), np.array(b)
-    return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
-
-
-def parse_embedding(text: str) -> list[float]:
-    return [float(x) for x in text.split(",")]
-
-
 @language_agent.tool
-async def find_lesson_by_name(ctx: RunContext[Deps], text: str) -> str:
+async def find_lesson(ctx: RunContext[Deps], text: str) -> str:
     """
     Searches embedded Dutch books for the most relevant lesson using similarity.
     - `text`: Input text to match.
     Returns the lesson title and content.
     """
-
-    # Generate the embedding for the question
-    embedded = (
-        openai.embeddings.create(
-            model="text-embedding-ada-002",
-            input=text,
-        )
-        .data[0]
-        .embedding
-    )
-
-    vector_str = f"[{', '.join(map(str, embedded))}]"
-
-    db = ctx.deps.db
-
-    # Query the database using pgvector cosine similarity
-    result = db.execute(
-        sql_text(
-            """
-            SELECT title, content
-            FROM sections
-            ORDER BY embedding <-> CAST(:embedding AS vector)
-            LIMIT 1
-        """
-        ),
-        {"embedding": vector_str},
-    ).fetchone()
-
-    if result:
-        return f"## {result.title}\n\n{result.content}"
-    return "No relevant lesson found."
+    return find_lesson_by_name(ctx.deps.db, text)
 
 
 @language_agent.tool
@@ -128,56 +96,11 @@ async def find_sentences(
     - `cefr_level`: (Optional) Filter by CEFR level (e.g., A1, B2)).
     Returns a comma-separated list of similar sentence texts.
     """
-    # Validate the CEFR level
-    valid_cefr_levels = ["A1", "A2", "B1", "B2", "C1", "C2", "ALL LEVELS"]
-    if cefr_level not in valid_cefr_levels:
-        return f"Invalid CEFR level. Valid options are: {', '.join(valid_cefr_levels)}"
-    if limit < 1:
-        return "Limit must be at least 1."
-    if limit > 10:
-        return "Limit must be at most 10."
-
-    # Generate the embedding for the question
-    embedded = (
-        openai.embeddings.create(
-            model="text-embedding-ada-002",
-            input=text,
-        )
-        .data[0]
-        .embedding
-    )
-
-    vector_str = f"[{', '.join(map(str, embedded))}]"
-    db = ctx.deps.db
-
-    base_sql = """
-        SELECT s.text AS sentence
-        FROM sentences s
-        WHERE (:book_id IS NULL OR s.book_id = :book_id)
-          AND (:cefr_level = 'ALL LEVELS' OR s.cefr_level = :cefr_level)
-        ORDER BY s.embedding <-> CAST(:embedding AS vector)
-        LIMIT :limit
-    """
-
-    result = db.execute(
-        sql_text(base_sql),
-        {
-            "embedding": vector_str,
-            "book_id": book_id,
-            "cefr_level": cefr_level,
-            "limit": limit,
-        },
-    ).fetchall()
-
-    if result:
-        sentences = [row.sentence for row in result]
-        return ", ".join(sentences)
-
-    return "No similar sentence found."
+    return find_or_get_sentences(ctx.deps.db, text, limit, book_id, cefr_level)
 
 
 @language_agent.tool
-async def find_sentence_containing_word(
+async def find_sentence(
     ctx: RunContext[Deps], word: str, limit: int = 1, book_id: int = None
 ) -> str:
     """
@@ -188,37 +111,7 @@ async def find_sentence_containing_word(
     Returns a comma-separated list of sentences containing the word.
     """
 
-    if limit < 1:
-        return "Limit must be at least 1."
-    if limit > 10:
-        return "Limit must be at most 10."
-    if not word:
-        return "Please provide a word to search for."
-    if len(word) < 2:
-        return "Word must be at least 2 characters long."
-    if len(word) > 20:
-        return "Word must be at most 20 characters long."
-
-    db = ctx.deps.db
-
-    base_sql = """
-        SELECT s.text AS sentence
-        FROM sentences s
-        WHERE to_tsvector('dutch', s.text) @@ plainto_tsquery('dutch', :search)
-        AND (:book_id IS NULL OR s.book_id = :book_id)
-        ORDER BY RANDOM()
-        LIMIT :limit
-    """
-
-    result = db.execute(
-        sql_text(base_sql), {"search": word, "book_id": book_id, "limit": limit}
-    ).fetchall()
-
-    if result:
-        sentences = [row.sentence for row in result]
-        return ", ".join(sentences)
-
-    return "No sentence found including the word."
+    return find_sentence_containing_word(ctx.deps.db, word, limit, book_id)
 
 
 @language_agent.tool
@@ -241,7 +134,7 @@ async def get_random_sentences(
     sql = """
         SELECT s.text AS sentence
         FROM sentences s
-        WHERE (:book_id IS NULL OR s.book_id = :book_id)
+        WHERE (:book_id IS NULL OR :book_id = 0 OR s.book_id = :book_id)
           AND (:cefr_level = 'ALL LEVELS' OR s.cefr_level = :cefr_level)
         ORDER BY RANDOM()
         LIMIT :limit
@@ -338,11 +231,14 @@ async def get_vocabularies(
 
 
 @language_agent.tool
-async def find_book_id(ctx: RunContext[Deps], bookName: str) -> str:
+async def find_book_id_by_name(ctx: RunContext[Deps], bookName: str) -> str:
+    return find_book_id(ctx.deps.db, bookName)
+
+
+@language_agent.tool
+async def get_book_names(ctx: RunContext[Deps]) -> list[str]:
     """
-    Finds the most relevant book ID by name.
-    - `bookName`: Book name to search.
-    Returns the book ID or a message if not found.
+    Return array of name of books. Limit to 10 books.
     """
 
     # Query the database using pgvector cosine similarity
@@ -352,14 +248,14 @@ async def find_book_id(ctx: RunContext[Deps], bookName: str) -> str:
             SELECT title
             FROM books
             WHERE title = :bookName
-            LIMIT 1
+            LIMIT 10
         """
         ),
-        {"bookName": bookName},
+        {},
     ).fetchone()
 
     if result:
-        return result.id
+        return [book.title for book in result]
     return "No relevant book found."
 
 
@@ -406,6 +302,15 @@ async def explain_grammar(ctx: RunContext[Deps], sentence: str) -> str:
     return response.json()["choices"][0]["message"]["content"].strip()
 
 
+def cosine_similarity(a: list[float], b: list[float]) -> float:
+    a, b = np.array(a), np.array(b)
+    return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+
+
+def parse_embedding(text: str) -> list[float]:
+    return [float(x) for x in text.split(",")]
+
+
 async def main():
     async with AsyncClient() as client:
         db = SessionLocal()
@@ -418,5 +323,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-__all__ = ["language_agent", "Deps", "SessionLocal"]
