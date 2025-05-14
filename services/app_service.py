@@ -3,7 +3,7 @@ from __future__ import annotations as _annotations
 import json
 import os
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, List
 
 import logfire
 import openai
@@ -14,6 +14,7 @@ from sqlalchemy.orm import sessionmaker
 from pydantic_ai import RunContext
 from dotenv import load_dotenv
 from tools.chat_with_ai import chat_with_grok
+from utils.cerf_helper import map_to_joint_levels
 
 env_file = ".env.production" if os.getenv("ENV") == "production" else ".env"
 load_dotenv(env_file)
@@ -171,6 +172,7 @@ async def find_or_get_sentences(
         for row in result
     ]
 
+    print(f"{len(sentences)} sentences found.")
     # Ensure translations for sentences without them
     sentences = await ensure_translation(db, sentences)
 
@@ -197,6 +199,8 @@ async def ensure_translation(db: Any, sentences: list[dict]) -> list[dict]:
     if not untranslated_sentences:
         return sentences
 
+    print(f"{len(untranslated_sentences)} sentences to be translated.")
+
     # Prepare the prompt for the GROK model
     sentences_to_translate = [s["text"] for s in untranslated_sentences]
     prompt = (
@@ -213,6 +217,9 @@ async def ensure_translation(db: Any, sentences: list[dict]) -> list[dict]:
     # Update the database with the translations
     for sentence, translation in zip(untranslated_sentences, translations):
         sentence["translation"] = translation.strip()
+        print(
+            f"Updating translation for sentence ID {sentence['id']}: {translation.strip()}"
+        )
         db.execute(
             sql_text("UPDATE sentences SET translation = :translation WHERE id = :id"),
             {"translation": translation.strip(), "id": sentence["id"]},
@@ -226,7 +233,7 @@ async def ensure_translation(db: Any, sentences: list[dict]) -> list[dict]:
 
 async def find_sentence_containing_word(
     db: Any,
-    word: str,
+    word_forms: List[str],
     limit: int = 1,
     book_id: int = None,
     cefr_level: str = "ALL LEVELS",
@@ -243,36 +250,52 @@ async def find_sentence_containing_word(
         return "Limit must be at least 1."
     if limit > 10:
         return "Limit must be at most 10."
-    if not word:
+
+    word_forms = [w.strip() for w in word_forms if len(w.strip()) > 1]
+
+    if not word_forms:
         return "Please provide a word to search for."
-    if len(word) < 2:
+    if len(word_forms[0]) < 2:
         return "Word must be at least 2 characters long."
-    if len(word) > 20:
+    if len(word_forms[0]) > 20:
         return "Word must be at most 20 characters long."
 
-    base_sql = """
-        SELECT s.text AS sentence
-        FROM sentences s
-        WHERE to_tsvector('dutch', s.text) @@ plainto_tsquery('dutch', :search)
-        AND (:book_id IS NULL OR :book_id = 0 OR s.book_id = :book_id)
-        AND (:cefr_level = 'ALL LEVELS' OR s.cefr_level = :cefr_level)
-        ORDER BY RANDOM()
-        LIMIT :limit
-    """
+    result = retrieve_sentences(db, word_forms, limit, book_id, cefr_level)
+    if not result:
+        result = retrieve_sentences(db, word_forms, limit, book_id, "ALL LEVELS")
 
-    print(
-        f"SQL: {base_sql}, queries: {word}, book_id: {book_id}, limit: {limit}, cefr_level: {cefr_level}"
-    )
-    result = db.execute(
-        sql_text(base_sql),
-        {"search": word, "book_id": book_id, "limit": limit, "cefr_level": cefr_level},
-    ).fetchall()
-
+    print(f"{len(result)} sentences found.")
     if result:
         sentences = [row.sentence for row in result]
         return ", ".join(sentences)
 
     return "No sentence found including the word."
+
+
+def retrieve_sentences(db, word_forms, limit, book_id, cefr_level):
+    cefr_level_set = map_to_joint_levels(cefr_level)
+    base_sql = """
+        SELECT s.text AS sentence
+        FROM sentences s
+        WHERE to_tsvector('dutch', s.text) @@ to_tsquery('dutch', :tsquery)
+        AND (:book_id IS NULL OR :book_id = 0 OR s.book_id = :book_id)
+        AND (:cefr_level = 'ALL LEVELS' OR s.cefr_level = ANY(:cefr_level_set))
+        ORDER BY RANDOM()
+        LIMIT :limit
+    """
+
+    result = db.execute(
+        sql_text(base_sql),
+        {
+            "tsquery": " | ".join(word_forms),
+            "book_id": book_id,
+            "limit": limit,
+            "cefr_level": cefr_level,
+            "cefr_level_set": cefr_level_set,
+        },
+    ).fetchall()
+
+    return result
 
 
 async def get_vocabularies(

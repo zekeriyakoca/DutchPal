@@ -37,15 +37,20 @@ async def get_vocabulary(req: VocabRequest):
     if not vocabularies:
         return {"response": "No vocabulary found."}
 
+    print(f"Vocabularies: {vocabularies}")
     data = [
         {
             "word": vocab["lemma"],
             "vocablary": vocab,
             "example sentences": await find_sentence_containing_word(
                 db=db,
-                word=vocab["lemma"],
+                word_forms=[
+                    vocab["lemma"],
+                    *vocab["present_form"].split("/"),
+                    *vocab["v2_form"].split("/"),
+                    *vocab["v3_form"].split("/"),
+                ],
                 limit=3,
-                book_id=req.book_id,
                 cefr_level=req.level,
             ),
         }

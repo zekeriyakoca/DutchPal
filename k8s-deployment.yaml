@@ -17,6 +17,7 @@ spec:
       containers:
       - name: dutchpal-container
         image: docker.io/zekeriyakoca/dutchpal-fastapi:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 40001
         env:
