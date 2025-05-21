@@ -134,10 +134,12 @@ def ai_format_study_book_to_markdown(
         Keep only the lines that make sense (remove OCR noise, unmeaningful text, broken characters, unreadable fragments, empty lines)
         Preserve the order and wording of real sentences or content
         Format it into Markdown using # or ## or ### headers, lists, and spacing but don't add any extra titles or headers.
+        Every sentece should be in a new line. No multiple sentences in one line (split them to new lines if there is). Merge lines if they are part of the same sentence and make sense. Remove anything that is not part of a sentence.
         Formatting rules:
             Use single # only for unit or section titles (e.g. “Unit 1, Les 2 ..., etc) (this will be like # Unit 1, # Lesson 2, etc)
         Do NOT invent or add any new content
-        Do NOT guess missing words or rewrite anything
+        Do NOT guess missing words or rewrite anything. 
+        If there is a obvious wrong sentence, remove it.
         If there is English translation of Dutch text, remove them. I only want to collect Dutch text.
         If it looks like garbage or non-content, remove the line
         {convert_to_dutch_prompt() if translateToDutch else ''}
@@ -147,7 +149,7 @@ def ai_format_study_book_to_markdown(
         {plain_text.strip()}
         \"\"\"
     """
-    response = chat_with_openai_41_nano(prompt)
+    response = chat_with_openai_4o_mini(prompt)
     print(f"formatting completed at {datetime.now().strftime('%M:%S')}")
 
     return response
@@ -172,13 +174,14 @@ def ai_format_readingbook_to_markdown(plain_text: str) -> str:
         Do NOT guess missing words or rewrite anything
         If there is English translation of Dutch text, remove them. I only want to collect Dutch text.
         If it looks like garbage, page info, additional info or non-content, remove the line
+        Every sentece should be in a new line. No multiple sentences in one line. Merge lines if they are part of the same sentence and make sense. Remove anything that is not part of a sentence.
 
         Raw OCR Text:
         \"\"\"
         {plain_text.strip()}
         \"\"\"
     """
-    response = chat_with_openai_41_nano(prompt)
+    response = chat_with_openai_4o_mini(prompt)
     print(f"formatting completed at {datetime.now().strftime('%M:%S')}")
 
     return response

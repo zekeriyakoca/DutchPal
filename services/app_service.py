@@ -109,15 +109,14 @@ async def find_or_get_sentences(
 
     # Validate input
     if limit < 1:
-        return [{"error": "Limit must be at least 1."}]
+        raise Exception("Limit must be at least 1.")
     if limit > 10:
-        return [{"error": "Limit must be at most 10."}]
+        raise Exception("Limit must be at most 50.")
+
     if cefr_level not in ["A1", "A2", "B1", "B2", "C1", "C2", "ALL LEVELS"]:
-        return [
-            {
-                "error": "Invalid CEFR level. Valid options are: A1, A2, B1, B2, C1, C2, ALL LEVELS."
-            }
-        ]
+        raise Exception(
+            "Invalid CEFR level. Valid options are: A1, A2, B1, B2, C1, C2, ALL LEVELS."
+        )
 
     # SQL query for random sentences
     if not text:
@@ -164,7 +163,7 @@ async def find_or_get_sentences(
     result = db.execute(sql_text(sql), params).fetchall()
 
     if not result:
-        return [{"error": "No sentences found."}]
+        raise Exception("No sentences found.")
 
     # Convert result to a list of dictionaries
     sentences = [
@@ -175,7 +174,6 @@ async def find_or_get_sentences(
     print(f"{len(sentences)} sentences found.")
     # Ensure translations for sentences without them
     sentences = await ensure_translation(db, sentences)
-
     # Return the list of sentences with translations
     return [{"sentence": s["text"], "translation": s["translation"]} for s in sentences]
 
@@ -382,6 +380,92 @@ async def get_vocabularies(
     #     f"Lemma: {row.lemma}, POS: {row.pos}, CEFR: {row.cefr_level}, EncounterCount: {row.encounter_count}×"
     #     for row in result
     # )
+
+
+def get_paragraph_questions(db: Any, limit: int = 1, cefr_level="ALL LEVELS") -> list:
+    """
+    Returns a list of question groups, each with:
+    - title
+    - text (paragraph)
+    - cefr_level
+    - questions: list of { question_text, answers: [str] }
+    """
+    if limit < 1:
+        raise ValueError("Limit must be at least 1.")
+    if limit > 10:
+        raise ValueError("Limit must be at most 10.")
+
+    return retrieve_questions(db, limit, cefr_level)
+
+
+def retrieve_questions(db, limit: int, cefr_level: str):
+    query = """
+        WITH selected_groups AS (
+            SELECT id
+            FROM question_groups
+            WHERE question_type = 'paragraph'
+            {cefr_filter}
+            ORDER BY RANDOM()
+            LIMIT :group_limit
+        )
+        SELECT 
+            qg.id AS group_id,
+            qg.title AS group_title,
+            qg.text AS group_text,
+            qg.cefr_level AS group_cefr_level,
+            qi.id AS question_id,
+            qi.question_text,
+            qi.answer,
+            qi.order_index
+        FROM selected_groups sg
+        JOIN question_groups qg ON qg.id = sg.id
+        JOIN question_items qi ON qg.id = qi.group_id
+        ORDER BY qg.id, qi.order_index
+    """
+
+    cefr_filter = ""
+    params = {"group_limit": limit}
+
+    if cefr_level and cefr_level.upper() != "ALL LEVELS":
+        cefr_filter = "AND cefr_level = :cefr_level"
+        params["cefr_level"] = cefr_level.upper()
+
+    final_sql = query.format(cefr_filter=cefr_filter)
+
+    rows = db.execute(sql_text(final_sql), params).fetchall()
+
+    # Group by question group ID
+    groups = {}
+    for row in rows:
+        gid = row.group_id
+        qid = row.question_id
+
+        if gid not in groups:
+            groups[gid] = {
+                "title": row.group_title,
+                "text": row.group_text,
+                "cefr_level": row.group_cefr_level,
+                "questions": {},
+            }
+
+        if qid not in groups[gid]["questions"]:
+            groups[gid]["questions"][qid] = {
+                "question_text": row.question_text,
+                "answers": [],
+            }
+
+        groups[gid]["questions"][qid]["answers"].append(row.answer)
+
+    # Flatten questions into a list
+    return [
+        {
+            "title": g["title"],
+            "text": g["text"],
+            "cefr_level": g["cefr_level"],
+            "questions": list(g["questions"].values()),
+        }
+        for g in groups.values()
+    ]
 
 
 async def explain_grammar(ctx: RunContext[Deps], sentence: str) -> str:

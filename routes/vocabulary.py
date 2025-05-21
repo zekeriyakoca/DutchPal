@@ -44,12 +44,7 @@ async def get_vocabulary(req: VocabRequest):
             "vocablary": vocab,
             "example sentences": await find_sentence_containing_word(
                 db=db,
-                word_forms=[
-                    vocab["lemma"],
-                    *vocab["present_form"].split("/"),
-                    *vocab["v2_form"].split("/"),
-                    *vocab["v3_form"].split("/"),
-                ],
+                word_forms=get_all_forms_of_word(vocab),
                 limit=3,
                 cefr_level=req.level,
             ),
@@ -61,6 +56,22 @@ async def get_vocabulary(req: VocabRequest):
 
     result = chat_with_grok(prompt=prompt)
     return {"response": result}
+
+
+def get_all_forms_of_word(vocab: dict) -> list[str]:
+    """
+    Get all forms of a word from the vocabulary dictionary.
+    """
+    return (
+        [
+            vocab["lemma"],
+            *vocab["present_form"].split("/"),
+            *vocab["v2_form"].split("/"),
+            *vocab["v3_form"].split("/"),
+        ]
+        if vocab["pos"] == "verb"
+        else [vocab["lemma"]]
+    )
 
 
 def build_vocab_prompt(data: str) -> str:

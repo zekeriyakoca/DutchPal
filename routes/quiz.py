@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from httpx import AsyncClient
+from services.app_service import get_paragraph_questions
 from tools.agent import language_agent, SessionLocal, Deps
 from pydantic import BaseModel
 from typing import Optional
@@ -17,6 +18,16 @@ class QuizRequest(BaseModel):
 
 @router.post("/quiz")
 async def generate_quiz(req: QuizRequest):
+    db = SessionLocal()
+
+    if req.quiz_type == "PARAGRAPH":
+        questionGroups = get_paragraph_questions(
+            db,
+            limit=req.number_of_entries,
+            cefr_level=req.level,
+        )
+        return {"response": convert_question_groups_to_markdown(questionGroups)}
+
     prompt = build_quiz_prompt(
         level=req.level,
         difficulty=req.difficulty,
@@ -26,10 +37,44 @@ async def generate_quiz(req: QuizRequest):
     )
 
     async with AsyncClient() as client:
-        db = SessionLocal()
         deps = Deps(client=client, db=db)
         result = await language_agent.run(prompt, deps=deps)
         return {"response": result.data}
+
+
+def convert_question_groups_to_markdown(data: list) -> str:
+    """
+    Converts question group data into Markdown:
+    - # Title
+    - Paragraph
+    - ### Vragen (with spacing)
+    - #### Antwoorden (at bottom, lowercase, with newlines between)
+    """
+    question_lines = []
+    answer_lines = []
+
+    for group in data:
+        question_lines.append(f"# {group['title'].strip()}")
+        question_lines.append(group["text"].strip())
+        question_lines.append("")
+        question_lines.append("### Vragen")
+
+        for i, question in enumerate(group["questions"], 1):
+            question_lines.append(f"{i}- {question['question_text'].strip()}")
+            question_lines.append("")  # blank line after each question
+
+        for i, question in enumerate(group["questions"], 1):
+            answer_text = " / ".join(a.strip().lower() for a in question["answers"])
+            answer_lines.append(f"{i}: {answer_text}")
+
+        question_lines.append("")  # space between groups
+        answer_lines.append("")  # space between answer groups
+
+    question_lines.append("#### Antwoorden")
+    question_lines.append("")
+    question_lines.extend(answer_lines)
+
+    return "\n".join(question_lines)
 
 
 def build_quiz_prompt(

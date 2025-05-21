@@ -59,7 +59,7 @@ if agent_model == "gpt-4o":
 
 elif agent_model == "grok:llama4-scout":
     language_agent = Agent(
-        model="groq:llama3-8b-8192",
+        model="groq:llama3-70b-8192",
         openai_base_url="https://api.groq.com/openai/v1",
         openai_api_key=os.getenv("GROQ_API_KEY"),
         system_prompt=system_prompt,

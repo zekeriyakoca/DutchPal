@@ -1,6 +1,16 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import sentences, vocabulary, quiz, ask, chat, grammar, translate, bootstrap
+from routes import (
+    sentences,
+    vocabulary,
+    quiz,
+    ask,
+    chat,
+    grammar,
+    translate,
+    bootstrap,
+    translate_word,
+)
 
 app = FastAPI(root_path="/dutchpal-api")
 
@@ -29,3 +39,4 @@ app.include_router(vocabulary.router)
 app.include_router(quiz.router)
 app.include_router(grammar.router)
 app.include_router(translate.router)
+app.include_router(translate_word.router)

@@ -22,12 +22,14 @@ openai.api_key = OPENAI_API_KEY
 co = cohere.Client(CO_API_KEY)
 
 
-def chat_with_openai(prompt: str, model="gpt-4") -> str:
+def chat_with_openai(prompt: str, model="gpt-4o") -> str:
     response = openai.chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.1,
     )
+
+    print(f"total tokens used: {response.usage.total_tokens}")
     return response.choices[0].message.content.strip()
 
 
