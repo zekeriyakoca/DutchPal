@@ -1,0 +1,59 @@
+global:
+  imageRegistry: docker.io/zekeriyakoca
+  imageTag: current
+  imagePullPolicy: Always
+  domain: dutchpal.lontray.art
+
+otel:
+  enabled: false
+  endpoint: ""
+
+config:
+  publicOrigin: https://dutchpal.lontray.art
+
+secrets:
+  existingSecret: dutchpal-secrets
+
+postgres:
+  enabled: true
+  image: pgvector/pgvector:pg16
+  port: 5432
+  storageClass: local-path
+  storage: 10Gi
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 1000m, memory: 1Gi }
+
+agentApi:
+  enabled: true
+  replicas: 1
+  image: dutchpal-agent-api
+  port: 40001
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 1000m, memory: 1Gi }
+
+coreApi:
+  enabled: true
+  replicas: 1
+  image: dutchpal-core-api
+  port: 5257
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 1000m, memory: 768Mi }
+
+ui:
+  enabled: true
+  replicas: 1
+  image: dutchpal-ui
+  port: 80
+  resources:
+    requests: { cpu: 25m, memory: 64Mi }
+    limits: { cpu: 250m, memory: 128Mi }
+
+ingress:
+  enabled: true
+  certResolver: letsencrypt
+  entryPoint: websecure
+  agentPrefix: /dutchpal-api
+  corePrefix: /dutchpal-v2-api

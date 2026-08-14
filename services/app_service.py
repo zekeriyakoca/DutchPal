@@ -13,7 +13,7 @@ from sqlalchemy import create_engine, text as sql_text
 from sqlalchemy.orm import sessionmaker
 from pydantic_ai import RunContext
 from dotenv import load_dotenv
-from tools.chat_with_ai import chat_with_grok
+from tools.chat_with_ai import chat_with_grok, chat_with_openai_5_mini
 from utils.cerf_helper import map_to_joint_levels
 
 env_file = ".env.production" if os.getenv("ENV") == "production" else ".env"
@@ -33,6 +33,17 @@ class Deps:
     db: Any  # SQLAlchemy session
 
 
+def create_embedding(text: str) -> list[float]:
+    return (
+        openai.embeddings.create(
+            model="text-embedding-ada-002",
+            input=text,
+        )
+        .data[0]
+        .embedding
+    )
+
+
 async def translate(sentence: str) -> str:
     """
     Translates a Dutch sentence into English using the GROK model.
@@ -46,10 +57,24 @@ async def translate(sentence: str) -> str:
     if not sentence:
         return "Nothing to translate."
 
-    prompt = f"""Translate the sentence '{sentence}' into English. Highlight the important words in the sentence. Do not return any extra info buy only md formatted translation."""
+    prompt = f"""
+        Translate the sentence '{sentence}' into English.
+        If the sentence is not in good shape, intelligently correct it.
+        return only a json with two fileds : translation and text like this:
+        {{
+            "translation": "Here is the translation",
+            "text": "Here is the original text or corrected text"
+        }} 
+        No extra text or explanation needed buy only the json.
+    """
 
     response = chat_with_grok(prompt=prompt)
-    return response.strip()
+    json_response = json.loads(response.strip())
+    if "translation" not in json_response or "text" not in json_response:
+        return "Invalid response format from translation service."
+
+    mdText = f"**Translation:** {json_response['translation']}\n\n**Original Text:** {json_response['text']}"
+    return mdText
 
 
 async def find_lesson_by_name(ctx: RunContext[Deps], text: str) -> str:
@@ -59,19 +84,11 @@ async def find_lesson_by_name(ctx: RunContext[Deps], text: str) -> str:
     Returns the lesson title and content.
     """
 
-    # Generate the embedding for the question
-    embedded = (
-        openai.embeddings.create(
-            model="text-embedding-ada-002",
-            input=text,
-        )
-        .data[0]
-        .embedding
-    )
-
-    vector_str = f"[{', '.join(map(str, embedded))}]"
-
     db = ctx.deps.db
+
+    # Generate the embedding for the question
+    embedded = create_embedding(text)
+    vector_str = f"[{', '.join(map(str, embedded))}]"
 
     # Query the database using pgvector cosine similarity
     result = db.execute(
@@ -133,15 +150,7 @@ async def find_or_get_sentences(
     # SQL query for embedding-based search
     else:
         # Generate the embedding for the input text
-        embedded = (
-            openai.embeddings.create(
-                model="text-embedding-ada-002",
-                input=text,
-            )
-            .data[0]
-            .embedding
-        )
-
+        embedded = create_embedding(text)
         vector_str = f"[{', '.join(map(str, embedded))}]"
 
         sql = """
@@ -163,7 +172,7 @@ async def find_or_get_sentences(
     result = db.execute(sql_text(sql), params).fetchall()
 
     if not result:
-        raise Exception("No sentences found.")
+        return []
 
     # Convert result to a list of dictionaries
     sentences = [
@@ -267,7 +276,7 @@ async def find_sentence_containing_word(
         sentences = [row.sentence for row in result]
         return ", ".join(sentences)
 
-    return "No sentence found including the word."
+    return ""
 
 
 def retrieve_sentences(db, word_forms, limit, book_id, cefr_level):
@@ -318,14 +327,7 @@ async def get_vocabularies(
 
     if word_to_search:
         # Generate embedding for semantic similarity
-        embedded = (
-            openai.embeddings.create(
-                model="text-embedding-ada-002",
-                input=word_to_search,
-            )
-            .data[0]
-            .embedding
-        )
+        embedded = create_embedding(word_to_search)
         vector_str = f"[{', '.join(map(str, embedded))}]"
 
         sql = """
@@ -468,11 +470,11 @@ def retrieve_questions(db, limit: int, cefr_level: str):
     ]
 
 
-async def explain_grammar(ctx: RunContext[Deps], sentence: str) -> str:
+async def explain_grammar(client: AsyncClient, sentence: str) -> str:
     """Explain the grammar rules in the given Dutch sentence."""
     prompt = f"Explain the Dutch grammar in this sentence:\n{sentence}"
 
-    response = await ctx.deps.client.post(
+    response = await client.post(
         "https://api.openai.com/v1/chat/completions",
         headers={
             "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}",
@@ -483,7 +485,22 @@ async def explain_grammar(ctx: RunContext[Deps], sentence: str) -> str:
             "messages": [{"role": "user", "content": prompt}],
         },
     )
+    response.raise_for_status()
     return response.json()["choices"][0]["message"]["content"].strip()
+
+
+async def explain(sentence: str) -> str:
+    """Explain the given Dutch sentence"""
+
+    prompt = f"""
+    Explain the Dutch grammar in this sentence:\n{sentence}
+    Focus only on grammar rules, vocabulary, or phrases that stand out or may be tricky. 
+    Skip anything too basic (A1 level or below).
+    First translate and then explain it in quite concise and keep it simple. Mention Sentence Structure and Notable Points. Max 150 words, less is better, though. Don't tell every detail, just the most important ones.
+    Return proper formatted, easy to read markdown text. Use headings, bullet points, and code blocks, bold texts where appropriate.
+    """
+
+    return chat_with_openai_5_mini(prompt=prompt)
 
 
 async def find_book_id(ctx: RunContext[Deps], bookName: str) -> str:
@@ -497,7 +514,7 @@ async def find_book_id(ctx: RunContext[Deps], bookName: str) -> str:
     result = ctx.deps.db.execute(
         sql_text(
             """
-            SELECT title
+            SELECT id, title
             FROM books
             WHERE title = :bookName
             LIMIT 1

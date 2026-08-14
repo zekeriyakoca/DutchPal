@@ -1,31 +1,31 @@
 from fastapi import APIRouter
 from httpx import AsyncClient
-from tools.agent import language_agent, SessionLocal, Deps
 from pydantic import BaseModel
-from services.app_service import explain_grammar
+from services.app_service import explain_grammar, explain
+from utils.provider_errors import raise_openai_unavailable_if_provider_error
 
 router = APIRouter()
 
 
-class GrammarRequest(BaseModel):
+class ExplanationRequest(BaseModel):
     message: str  # the sentence to analyze
 
 
-@router.post("/grammar")
-async def explain_grammar_of_sentence(req: GrammarRequest):
+@router.post("/explain-grammar")
+async def explain_grammar_of_sentence(req: ExplanationRequest):
 
-    result = explain_grammar(req.message)
-    return {"response": result.data}
-
-
-#     prompt = build_grammar_prompt(req.message)
-
-#     async with AsyncClient() as client:
-#         db = SessionLocal()
-#         deps = Deps(client=client, db=db)
-#         result = await language_agent.run(prompt, deps=deps)
-#         return {"response": result.data}
+    async with AsyncClient() as client:
+        try:
+            result = await explain_grammar(client, req.message)
+        except Exception as exc:
+            raise_openai_unavailable_if_provider_error(exc)
+        return {"response": result}
 
 
-# def build_grammar_prompt(sentence: str) -> str:
-#     return f"Explain the Dutch grammar in this sentence: {sentence}"
+@router.post("/explain")
+async def explain_text(req: ExplanationRequest):
+    try:
+        result = await explain(req.message)
+    except Exception as exc:
+        raise_openai_unavailable_if_provider_error(exc)
+    return {"response": result}

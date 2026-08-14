@@ -75,7 +75,7 @@ The tools rely on the following libraries and APIs:
 1. **Set Up Environment**:
    - Activate the virtual environment:
      ```bash
-     source .venv/bin/activate
+     source venv/bin/activate
      ```
    - Install dependencies:
      ```bash

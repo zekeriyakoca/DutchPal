@@ -40,12 +40,12 @@ async def get_vocabulary(req: VocabRequest):
     print(f"Vocabularies: {vocabularies}")
     data = [
         {
-            "word": vocab["lemma"],
+            "word": vocab["infinitive"] or vocab["lemma"],
             "vocablary": vocab,
             "example sentences": await find_sentence_containing_word(
                 db=db,
                 word_forms=get_all_forms_of_word(vocab),
-                limit=3,
+                limit=2,
                 cefr_level=req.level,
             ),
         }
@@ -84,11 +84,10 @@ def build_vocab_prompt(data: str) -> str:
     - Word (e.g. wonen; base/dictionary form, 'infinitive' column if verb)
     - Level (CEFR)  
     - Translation (short English meaning)  
-    - Examples (3 example sentences in the provided data. Make 'Word' or any for of it under 'Prensent', 'V2', 'V3' column bold in the sentence. Seperate each example with a <br> tag. e.g. Uit welk land komt u?<br>Uit welk land kom je?)  
+    - Examples (Max 2 example sentences in the provided data if exist, otherwise, leave empty. Make 'Word' or any for of it under 'Prensent', 'V2', 'V3' column bold in the sentence. Seperate each example with a <br> tag. e.g. Uit welk land komt u?<br>Uit welk land kom je?)  
     - Present present column if verb (e.g. woon/woont/wonen)
     - V2(past) v2_form column if verb (e.g. woonde/woonde/woonden)
     - V3(past perfect) v3_form if verb (e.g. gewoond)
-    - Imperative (empty if not verb)
 
     Ensure **all columns are filled**. If any information is missing from the dataset, intelligently generate it. But first check the dataset for the information.
 

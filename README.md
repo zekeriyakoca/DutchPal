@@ -9,7 +9,7 @@
 Activate the virtual environment:
 
 ```bash
-source .venv/bin/activate
+source venv/bin/activate
 ```
 
 Install the dependencies:
@@ -37,8 +37,17 @@ The project includes a variety of tools and utilities for processing, analyzing,
 
 For detailed information about the tools, check out the [Tools README](tools/README.md).
 
-## Deployment to Local Server
+## Production Deployment
 
-For detailed instructions on deploying the FastAPI application to a local Kubernetes cluster, refer to the [Deployment to Local Kubernetes Guide](docs/Deployment-to-local-k8s.md).
+Production deploy runs only on the Oracle VM k3s cluster.
 
-> **Note**: The `Deployment-to-local-k8s.md` file is ignored in the repository (`.gitignore`) since this repository is public, and it may contain sensitive or environment-specific deployment details.
+Use the documentation and deploy script:
+
+- [Documentation index](docs/README.md)
+- [Production deployment](docs/01-production-deployment.md)
+- [AI engineering review](docs/04-ai-engineering-review.md)
+
+```bash
+bash DevOps/generate-images.sh --tag current
+bash DevOps/k3s/deploy-to-vm.sh --image-tag current
+```

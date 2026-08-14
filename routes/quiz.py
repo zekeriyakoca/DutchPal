@@ -4,6 +4,7 @@ from services.app_service import get_paragraph_questions
 from tools.agent import language_agent, SessionLocal, Deps
 from pydantic import BaseModel
 from typing import Optional
+from utils.agent_result import agent_output
 
 router = APIRouter()
 
@@ -39,7 +40,7 @@ async def generate_quiz(req: QuizRequest):
     async with AsyncClient() as client:
         deps = Deps(client=client, db=db)
         result = await language_agent.run(prompt, deps=deps)
-        return {"response": result.data}
+        return {"response": agent_output(result)}
 
 
 def convert_question_groups_to_markdown(data: list) -> str:

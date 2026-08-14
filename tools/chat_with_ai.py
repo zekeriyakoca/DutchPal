@@ -22,15 +22,28 @@ openai.api_key = OPENAI_API_KEY
 co = cohere.Client(CO_API_KEY)
 
 
-def chat_with_openai(prompt: str, model="gpt-4o") -> str:
+def chat_with_openai(prompt: str, model="gpt-5") -> str:
     response = openai.chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.1,
     )
 
     print(f"total tokens used: {response.usage.total_tokens}")
     return response.choices[0].message.content.strip()
+
+
+def chat_with_openai_5(prompt: str) -> str:
+    return chat_with_openai(prompt, model="gpt-5")
+
+
+def chat_with_openai_5_mini(prompt: str) -> str:
+    return chat_with_openai(prompt, model="gpt-5-mini")
+
+
+def chat_with_openai_5_nano(
+    prompt: str,
+) -> str:
+    return chat_with_openai(prompt, model="gpt-5-nano")
 
 
 def chat_with_openai_4o(prompt: str) -> str:
@@ -74,7 +87,7 @@ def chat_with_command_r_plus(prompt: str) -> str:
     return response.text.strip()
 
 
-def chat_with_grok(prompt: str, model="llama3-8b-8192") -> str:
+def chat_with_grok(prompt: str, model="llama-3.1-8b-instant") -> str:
     client = openai.OpenAI(
         api_key=os.getenv("GROQ_API_KEY"),
         base_url="https://api.groq.com/openai/v1",

@@ -1,0 +1,84 @@
+{{- if .Values.agentApi.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dutchpal-agent-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: dutchpal-agent-api
+    app.kubernetes.io/component: agent-api
+    {{- include "dutchpal.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.agentApi.replicas }}
+  revisionHistoryLimit: 2
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: dutchpal-agent-api
+  template:
+    metadata:
+      labels:
+        app: dutchpal-agent-api
+        app.kubernetes.io/component: agent-api
+    spec:
+      terminationGracePeriodSeconds: 35
+      containers:
+        - name: dutchpal-agent-api
+          image: {{ include "dutchpal.image" (dict "Values" .Values "imageName" .Values.agentApi.image) }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.agentApi.port }}
+          envFrom:
+            - configMapRef:
+                name: dutchpal-config
+            - secretRef:
+                name: {{ .Values.secrets.existingSecret }}
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: dutchpal-agent-api
+            - name: DATABASE_URL
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@dutchpal-postgres:{{ .Values.postgres.port }}/$(POSTGRES_DB)"
+          resources:
+            {{- toYaml .Values.agentApi.resources | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.agentApi.port }}
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.agentApi.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.agentApi.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dutchpal-agent-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: dutchpal-agent-api
+spec:
+  selector:
+    app: dutchpal-agent-api
+  ports:
+    - name: http
+      port: {{ .Values.agentApi.port }}
+      targetPort: {{ .Values.agentApi.port }}
+{{- end }}

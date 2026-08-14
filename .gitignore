@@ -189,3 +189,6 @@ docs/Deployment-to-local-k8s.md
 .env.production
 
 garbage/
+
+DevOps/k3s/secrets.env
+.tmp-deploy/

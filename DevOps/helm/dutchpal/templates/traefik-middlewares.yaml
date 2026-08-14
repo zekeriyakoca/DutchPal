@@ -1,0 +1,26 @@
+{{- if and .Values.ingress.enabled .Values.global.domain }}
+{{- $apiVersion := include "dutchpal.traefikApiVersion" . }}
+apiVersion: {{ $apiVersion }}
+kind: Middleware
+metadata:
+  name: strip-dutchpal-agent-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dutchpal.labels" . | nindent 4 }}
+spec:
+  stripPrefix:
+    prefixes:
+      - {{ .Values.ingress.agentPrefix | quote }}
+---
+apiVersion: {{ $apiVersion }}
+kind: Middleware
+metadata:
+  name: strip-dutchpal-core-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dutchpal.labels" . | nindent 4 }}
+spec:
+  stripPrefix:
+    prefixes:
+      - {{ .Values.ingress.corePrefix | quote }}
+{{- end }}

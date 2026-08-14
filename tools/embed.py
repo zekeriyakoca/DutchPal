@@ -77,6 +77,7 @@ class Vocabulary(Base):
     v2_form = Column(String, nullable=True)
     v3_form = Column(String, nullable=True)
     frequency = Column(Integer, nullable=True)
+    is_valid = Column(Integer, default=1)  # 1 for valid, 0 for invalid
     __table_args__ = (UniqueConstraint("lemma", "pos", name="_lemma_pos_uc"),)
 
 
@@ -266,18 +267,19 @@ def update_vocabulary_forms_batched(session, batch_size=100):
 
         prompt_lines = [
             "You are a Dutch language teacher.",
+            "If the word is not Dutch or is not a verb, return an empty JSON object.",
             f"Provide the Present, V2 (Past), and V3 (Past Participle) forms for the following {len(batch)} Dutch words along with their part of speech.",
             'Respond in JSON format like: {"lopen": {"infinitive": "lopen", "present": "loop/loopt/lopen", "V2": "liep/liepen", "V3": "gelopen"}, ...}',
             "do not use blocks like ```json",
         ]
         for entry in batch:
-            prompt_lines.append(f"{entry.lemma} ({entry.pos})")
+            prompt_lines.append(f"{entry.lemma}")
 
         prompt = "\n".join(prompt_lines)
 
         try:
             response = openai.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-5-mini",
                 messages=[
                     {"role": "system", "content": "You are a Dutch language teacher."},
                     {"role": "user", "content": prompt},
@@ -286,6 +288,7 @@ def update_vocabulary_forms_batched(session, batch_size=100):
                 max_tokens=6500,  # Adjust if needed
             )
             content = response.choices[0].message.content.strip()
+            content = content.replace("```json", "").replace("```", "")
             print(f"🔁 Raw response:\n{content}\n")
             # Parse JSON response
             conjugations = json.loads(content)
@@ -299,6 +302,7 @@ def update_vocabulary_forms_batched(session, batch_size=100):
                     entry.v3_form = forms.get("V3", "")
                 else:
                     print(f"⚠️ No forms found for {entry.lemma}")
+                    entry.is_valid = 0
 
             session.commit()
 
@@ -333,7 +337,7 @@ def update_vocabulary_cefr_levels_batched(session, batch_size=50):
 
         try:
             response = openai.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-5-mini",
                 messages=[
                     {"role": "system", "content": "You are a Dutch language teacher."},
                     {"role": "user", "content": prompt},
@@ -389,7 +393,7 @@ def update_sentences_cefr_levels_batched(session, batch_size=50):
 
         try:
             response = openai.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-5",
                 messages=[
                     {"role": "system", "content": "You are a Dutch language teacher."},
                     {"role": "user", "content": prompt},
@@ -654,7 +658,7 @@ def main():
     # import_frequency_wordlist(
     #     processor, session, file_path="data/vocabulary/nl_50k.txt"
     # )
-    import_question_groups_from_file(session, "data/questions/test.md")
+    # import_question_groups_from_file(session, "data/questions/test.md")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,47 @@
+{{- if and .Values.ingress.enabled .Values.global.domain }}
+{{- $apiVersion := include "dutchpal.traefikApiVersion" . }}
+apiVersion: {{ $apiVersion }}
+kind: IngressRoute
+metadata:
+  name: dutchpal
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dutchpal.labels" . | nindent 4 }}
+spec:
+  entryPoints:
+    - {{ .Values.ingress.entryPoint }}
+  tls:
+    certResolver: {{ .Values.ingress.certResolver }}
+  routes:
+    {{- if .Values.agentApi.enabled }}
+    - match: Host(`{{ .Values.global.domain }}`) && PathPrefix(`{{ .Values.ingress.agentPrefix }}`)
+      kind: Rule
+      priority: 100
+      middlewares:
+        - name: strip-dutchpal-agent-api
+      services:
+        - name: dutchpal-agent-api
+          port: {{ .Values.agentApi.port }}
+          passHostHeader: true
+    {{- end }}
+    {{- if .Values.coreApi.enabled }}
+    - match: Host(`{{ .Values.global.domain }}`) && PathPrefix(`{{ .Values.ingress.corePrefix }}`)
+      kind: Rule
+      priority: 100
+      middlewares:
+        - name: strip-dutchpal-core-api
+      services:
+        - name: dutchpal-core-api
+          port: {{ .Values.coreApi.port }}
+          passHostHeader: true
+    {{- end }}
+    {{- if .Values.ui.enabled }}
+    - match: Host(`{{ .Values.global.domain }}`) && PathPrefix(`/`)
+      kind: Rule
+      priority: 1
+      services:
+        - name: dutchpal-ui
+          port: {{ .Values.ui.port }}
+          passHostHeader: true
+    {{- end }}
+{{- end }}

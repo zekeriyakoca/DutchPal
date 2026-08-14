@@ -1,6 +1,7 @@
 from __future__ import annotations as _annotations
 
 import asyncio
+import json
 import os
 from dataclasses import dataclass
 from typing import Any
@@ -18,6 +19,7 @@ from services.app_service import (
     find_book_id,
     find_or_get_sentences,
 )
+from utils.agent_result import agent_output
 
 env_file = ".env.production" if os.getenv("ENV") == "production" else ".env"
 load_dotenv(env_file)
@@ -59,9 +61,7 @@ if agent_model == "gpt-4o":
 
 elif agent_model == "grok:llama4-scout":
     language_agent = Agent(
-        model="groq:llama3-70b-8192",
-        openai_base_url="https://api.groq.com/openai/v1",
-        openai_api_key=os.getenv("GROQ_API_KEY"),
+        model="groq:llama-3.3-70b-versatile",
         system_prompt=system_prompt,
         deps_type=Deps,
         retries=2,
@@ -76,7 +76,7 @@ async def find_lesson(ctx: RunContext[Deps], text: str) -> str:
     - `text`: Input text to match.
     Returns the lesson title and content.
     """
-    return find_lesson_by_name(ctx.deps.db, text)
+    return await find_lesson_by_name(ctx, text)
 
 
 @language_agent.tool
@@ -95,7 +95,8 @@ async def find_sentences(
     - `cefr_level`: (Optional) Filter by CEFR level (e.g., A1, B2)).
     Returns a comma-separated list of similar sentence texts.
     """
-    return find_or_get_sentences(ctx.deps.db, text, limit, book_id, cefr_level)
+    result = await find_or_get_sentences(ctx.deps.db, text, limit, book_id, cefr_level)
+    return json.dumps(result, ensure_ascii=False)
 
 
 @language_agent.tool
@@ -103,7 +104,7 @@ async def get_vocabularies_from_dataset(
     ctx: RunContext[Deps],
     word_to_search: str = None,
     limit: int = 1,
-    cefr_level: str = None,
+    cefr_level: str = "ALL LEVELS",
     pos: str = None,
 ) -> str:
     """
@@ -125,13 +126,14 @@ async def get_vocabularies_from_dataset(
 
     db = ctx.deps.db
 
-    return get_vocabularies(
+    result = await get_vocabularies(
         db=db,
         word_to_search=word_to_search,
         limit=limit,
         cefr_level=cefr_level,
         pos=pos,
     )
+    return result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)
 
 
 @language_agent.tool
@@ -142,7 +144,7 @@ async def find_book_id_by_name(ctx: RunContext[Deps], bookName: str) -> str:
     Returns the book ID or a message if not found.
     """
 
-    return find_book_id(ctx.deps.db, bookName)
+    return await find_book_id(ctx, bookName)
 
 
 @language_agent.tool
@@ -184,6 +186,7 @@ async def explain_grammar(ctx: RunContext[Deps], sentence: str) -> str:
             "messages": [{"role": "user", "content": prompt}],
         },
     )
+    response.raise_for_status()
     return response.json()["choices"][0]["message"]["content"].strip()
 
 
@@ -203,7 +206,7 @@ async def main():
         result = await language_agent.run(
             "Explain me the 'geboren' giving the example sentences.", deps=deps
         )
-        print("Response:\n", result.data)
+        print("Response:\n", agent_output(result))
 
 
 if __name__ == "__main__":

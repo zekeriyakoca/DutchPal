@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dutchpal-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dutchpal.labels" . | nindent 4 }}
+data:
+  ENV: "production"
+  ASPNETCORE_ENVIRONMENT: "Production"
+  ASPNETCORE_URLS: "http://+:{{ .Values.coreApi.port }}"
+  Agent__Url: "http://dutchpal-agent-api:{{ .Values.agentApi.port }}"
+  DUTCHPAL_PUBLIC_ORIGIN: {{ .Values.config.publicOrigin | quote }}

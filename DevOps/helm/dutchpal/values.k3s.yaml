@@ -1,0 +1,14 @@
+# Production overrides for the Oracle VM k3s cluster.
+
+global:
+  domain: dutchpal.lontray.art
+
+config:
+  publicOrigin: https://dutchpal.lontray.art
+
+otel:
+  enabled: true
+  endpoint: http://otel-collector-opentelemetry-collector.monitoring:4317
+
+postgres:
+  storageClass: local-path

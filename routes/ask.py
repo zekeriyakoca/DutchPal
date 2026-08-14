@@ -3,6 +3,7 @@ from httpx import AsyncClient
 from tools.agent import language_agent, SessionLocal, Deps
 from pydantic import BaseModel
 from typing import Optional
+from utils.agent_result import agent_output
 
 router = APIRouter()
 
@@ -34,7 +35,7 @@ async def ask_language_agent(req: QueryRequest):
             req.quiz_type,
         )
         result = await language_agent.run(prompt, deps=deps)
-        return {"response": result.data}
+        return {"response": agent_output(result)}
 
 
 def build_prompt(

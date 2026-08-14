@@ -15,7 +15,3 @@ class TranslateRequest(BaseModel):
 async def translate_sentence(req: TranslateRequest):
     response = await translate(req.message)
     return {"response": response}
-
-
-def build_translation_prompt(sentence: str) -> str:
-    return f"Translate the sentence '{sentence}' into English. Highlight the important words in the sentence. No extra text or explanation needed. If the sentence is not in good shape, intelligently correct it."

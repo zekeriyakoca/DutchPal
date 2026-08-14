@@ -257,5 +257,5 @@ def process_story_books():
                 print(f"✅ Saved: {output_md}")
 
 
-process_language_books()
-# process_story_books()
+# process_language_books()
+process_story_books()
