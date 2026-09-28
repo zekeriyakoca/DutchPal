@@ -1,5 +1,7 @@
 from __future__ import annotations as _annotations
 
+import asyncio
+
 import json
 import os
 from dataclasses import dataclass
@@ -13,7 +15,7 @@ from sqlalchemy import create_engine, text as sql_text
 from sqlalchemy.orm import sessionmaker
 from pydantic_ai import RunContext
 from dotenv import load_dotenv
-from tools.chat_with_ai import chat_with_grok, chat_with_openai_5_mini
+from tools.chat_with_ai import chat_fast, chat_with_openai_5_mini
 from utils.cerf_helper import map_to_joint_levels
 
 env_file = ".env.production" if os.getenv("ENV") == "production" else ".env"
@@ -68,7 +70,7 @@ async def translate(sentence: str) -> str:
         No extra text or explanation needed buy only the json.
     """
 
-    response = chat_with_grok(prompt=prompt)
+    response = await asyncio.to_thread(chat_fast, prompt)
     json_response = json.loads(response.strip())
     if "translation" not in json_response or "text" not in json_response:
         return "Invalid response format from translation service."
@@ -87,7 +89,7 @@ async def find_lesson_by_name(ctx: RunContext[Deps], text: str) -> str:
     db = ctx.deps.db
 
     # Generate the embedding for the question
-    embedded = create_embedding(text)
+    embedded = await asyncio.to_thread(create_embedding, text)
     vector_str = f"[{', '.join(map(str, embedded))}]"
 
     # Query the database using pgvector cosine similarity
@@ -150,7 +152,7 @@ async def find_or_get_sentences(
     # SQL query for embedding-based search
     else:
         # Generate the embedding for the input text
-        embedded = create_embedding(text)
+        embedded = await asyncio.to_thread(create_embedding, text)
         vector_str = f"[{', '.join(map(str, embedded))}]"
 
         sql = """
@@ -217,7 +219,7 @@ async def ensure_translation(db: Any, sentences: list[dict]) -> list[dict]:
         + "\n".join(sentences_to_translate)
     )
     # Call the GROK model to translate all sentences in one batch
-    response = chat_with_grok(prompt=prompt)
+    response = await asyncio.to_thread(chat_fast, prompt)
 
     translations = json.loads(response)
 
@@ -327,7 +329,7 @@ async def get_vocabularies(
 
     if word_to_search:
         # Generate embedding for semantic similarity
-        embedded = create_embedding(word_to_search)
+        embedded = await asyncio.to_thread(create_embedding, word_to_search)
         vector_str = f"[{', '.join(map(str, embedded))}]"
 
         sql = """
@@ -481,7 +483,8 @@ async def explain_grammar(client: AsyncClient, sentence: str) -> str:
             "Content-Type": "application/json",
         },
         json={
-            "model": "gpt-3.5-turbo",
+            "model": "gpt-5-mini",
+            "reasoning_effort": "low",
             "messages": [{"role": "user", "content": prompt}],
         },
     )
@@ -500,7 +503,7 @@ async def explain(sentence: str) -> str:
     Return proper formatted, easy to read markdown text. Use headings, bullet points, and code blocks, bold texts where appropriate.
     """
 
-    return chat_with_openai_5_mini(prompt=prompt)
+    return await asyncio.to_thread(chat_with_openai_5_mini, prompt)
 
 
 async def find_book_id(ctx: RunContext[Deps], bookName: str) -> str:

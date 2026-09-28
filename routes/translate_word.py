@@ -1,7 +1,9 @@
+import asyncio
 from fastapi import APIRouter
 from pydantic import BaseModel
 from tools.chat_with_ai import (
-    chat_with_grok,
+    chat_fast,
+    chat_smart,
     chat_with_openai_5_mini,
     chat_with_openai_5_nano,
 )
@@ -24,12 +26,15 @@ class TranslateRequest(BaseModel):
 async def translate_word(req: TranslateRequest):
     prompt = build_vocab_prompt(req.message)
 
-    if req.response_quality == 3:
-        result = chat_with_openai_5_nano(prompt=prompt)
-    elif req.response_quality == 2:
-        result = chat_with_grok(prompt=prompt, model="llama-3.3-70b-versatile")
-    else:
-        result = chat_with_grok(prompt=prompt)
+    try:
+        if req.response_quality == 3:
+            result = await asyncio.to_thread(chat_with_openai_5_nano, prompt)
+        elif req.response_quality == 2:
+            result = await asyncio.to_thread(chat_smart, prompt)
+        else:
+            result = await asyncio.to_thread(chat_fast, prompt)
+    except Exception as exc:
+        raise_openai_unavailable_if_provider_error(exc)
 
     return {"response": result}
 
@@ -57,7 +62,7 @@ async def translate_word_as_json(req: TranslateRequest):
     prompt = build_vocab_prompt_for_json_response(req.message)
 
     try:
-        result = chat_with_openai_5_mini(prompt=prompt)
+        result = await asyncio.to_thread(chat_with_openai_5_mini, prompt)
     except Exception as exc:
         raise_openai_unavailable_if_provider_error(exc)
 

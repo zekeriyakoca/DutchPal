@@ -1,6 +1,6 @@
 # DutchPal production deployment
 
-> Last updated: 2026-05-28  
+> Last updated: 2026-09-28  
 > Source of truth: `DutchPal` repo  
 > Target: Oracle VM k3s  
 > Public URL: `https://dutchpal.lontray.art`
@@ -116,18 +116,22 @@ curl -fsS -X POST https://dutchpal.lontray.art/dutchpal-api/chat \
 
 | Endpoint | Used by | Main call | Extra AI calls | Failure behavior |
 | --- | --- | --- | --- | --- |
-| `POST /dutchpal-api/chat` | Chat UI | Groq `llama-3.3-70b-versatile` agent | tools can call OpenAI embeddings or OpenAI `gpt-3.5-turbo` | OpenAI tool failure -> `503`; Groq failure not normalized |
-| `POST /dutchpal-api/ask` | older generic UI flow | Groq `llama-3.3-70b-versatile` agent | same tools as `/chat` | not normalized |
-| `POST /dutchpal-api/quiz` | Quiz UI | Groq `llama-3.3-70b-versatile` agent | DB load for paragraph quiz | not normalized |
-| `POST /dutchpal-api/vocabulary` | Vocabulary UI | OpenAI `text-embedding-ada-002` if `message` exists | Groq `llama-3.1-8b-instant` formats Markdown | not normalized |
-| `POST /dutchpal-api/sentences` | Sentence UI | DB query | Groq `llama-3.1-8b-instant` only for missing translations | not normalized |
-| `POST /dutchpal-api/translate` | Translation UI | Groq `llama-3.1-8b-instant` | none | not normalized |
-| `POST /dutchpal-api/translate-word` | Word translation UI | Groq `llama-3.1-8b-instant` | `response_quality=2`: Groq `llama-3.3-70b-versatile`; `response_quality=3`: OpenAI `gpt-5-nano` | not normalized |
+| `POST /dutchpal-api/chat` | Chat UI | OpenAI `gpt-5-mini` agent (reasoning `low`) | tools can call OpenAI embeddings or OpenAI `gpt-5-mini` | OpenAI failure -> `503` |
+| `POST /dutchpal-api/ask` | older generic UI flow | OpenAI `gpt-5-mini` agent | same tools as `/chat` | not normalized |
+| `POST /dutchpal-api/quiz` | Quiz UI | OpenAI `gpt-5-mini` agent | DB load for paragraph quiz | not normalized |
+| `POST /dutchpal-api/vocabulary` | Vocabulary UI | OpenAI `text-embedding-ada-002` if `message` exists | OpenAI `gpt-5-nano` (reasoning `minimal`) formats Markdown | OpenAI failure -> `503` |
+| `POST /dutchpal-api/sentences` | Sentence UI | DB query | OpenAI `gpt-5-nano` only for missing translations | OpenAI failure -> `503` |
+| `POST /dutchpal-api/translate` | Translation UI | OpenAI `gpt-5-nano` | none | OpenAI failure -> `503` |
+| `POST /dutchpal-api/translate-word` | Word translation UI | OpenAI `gpt-5-nano` (minimal) | `response_quality=2`: `gpt-5-mini` (low); `response_quality=3`: `gpt-5-nano` | OpenAI failure -> `503` |
 | `POST /dutchpal-api/translate-word-as-json` | Selection/options UI | OpenAI `gpt-5-mini` | none | OpenAI failure -> `503` |
 | `POST /dutchpal-api/explain` | Selection/options UI | OpenAI `gpt-5-mini` | none | OpenAI failure -> `503` |
-| `POST /dutchpal-api/explain-grammar` | Grammar UI | OpenAI `gpt-3.5-turbo` | none | OpenAI failure -> `503` |
+| `POST /dutchpal-api/explain-grammar` | Grammar UI | OpenAI `gpt-5-mini` (low) | none | OpenAI failure -> `503` |
 | `GET /dutchpal-api/bootstrap` | App startup | DB query | none | no AI |
 | `/dutchpal-v2-api/*` | Study book UI | .NET + DB | none by default | no AI |
+
+## AI providers
+
+All production AI calls use OpenAI only (decided 2026-09-28). Groq `llama-*` models became enterprise-only and returned `404 model_not_found`. The Groq client (`chat_with_grok`) and `GROQ_API_KEY` secret are kept but unused.
 
 ## OpenAI state
 

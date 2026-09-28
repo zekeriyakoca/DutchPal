@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from services.app_service import find_or_get_sentences
 from tools.agent import SessionLocal
 from pydantic import BaseModel
+from utils.provider_errors import raise_openai_unavailable_if_provider_error
 from typing import Optional
 from tabulate import tabulate
 
@@ -18,12 +19,15 @@ class SentenceRequest(BaseModel):
 @router.post("/sentences")
 async def get_sentences(req: SentenceRequest):
 
-    result = await find_or_get_sentences(
-        db=SessionLocal(),
-        limit=req.number_of_entries,
-        cefr_level=req.level,
-        book_id=req.book_id,
-    )
+    try:
+        result = await find_or_get_sentences(
+            db=SessionLocal(),
+            limit=req.number_of_entries,
+            cefr_level=req.level,
+            book_id=req.book_id,
+        )
+    except Exception as exc:
+        raise_openai_unavailable_if_provider_error(exc)
 
     if not result:
         return {"response": "No sentences found."}

@@ -12,6 +12,7 @@ from httpx import AsyncClient
 from sqlalchemy import create_engine, text as sql_text
 from sqlalchemy.orm import sessionmaker
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.models.openai import OpenAIChatModelSettings
 from dotenv import load_dotenv
 from services.app_service import (
     find_lesson_by_name,
@@ -48,9 +49,19 @@ system_prompt = (
     "**Do not wrap the entire response in triple backticks or any code block.** Just return valid Markdown content directly."
 )
 
-agent_model = "grok:llama4-scout"
+agent_model = "gpt-5-mini"
 
-if agent_model == "gpt-4o":
+if agent_model == "gpt-5-mini":
+    language_agent = Agent(
+        "openai:gpt-5-mini",
+        system_prompt=system_prompt,
+        deps_type=Deps,
+        retries=2,
+        instrument=True,
+        model_settings=OpenAIChatModelSettings(openai_reasoning_effort="low"),
+    )
+
+elif agent_model == "gpt-4o":
     language_agent = Agent(
         "openai:gpt-4o",
         system_prompt=system_prompt,
@@ -182,7 +193,8 @@ async def explain_grammar(ctx: RunContext[Deps], sentence: str) -> str:
             "Content-Type": "application/json",
         },
         json={
-            "model": "gpt-3.5-turbo",
+            "model": "gpt-5-mini",
+            "reasoning_effort": "low",
             "messages": [{"role": "user", "content": prompt}],
         },
     )
@@ -200,7 +212,7 @@ def parse_embedding(text: str) -> list[float]:
 
 
 async def main():
-    async with AsyncClient() as client:
+    async with AsyncClient(timeout=60) as client:
         db = SessionLocal()
         deps = Deps(client=client, db=db)
         result = await language_agent.run(

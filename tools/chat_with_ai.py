@@ -22,14 +22,25 @@ openai.api_key = OPENAI_API_KEY
 co = cohere.Client(CO_API_KEY)
 
 
-def chat_with_openai(prompt: str, model="gpt-5") -> str:
+def chat_with_openai(prompt: str, model="gpt-5", reasoning_effort=None) -> str:
+    extra = {"reasoning_effort": reasoning_effort} if reasoning_effort else {}
     response = openai.chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": prompt}],
+        **extra,
     )
 
     print(f"total tokens used: {response.usage.total_tokens}")
     return response.choices[0].message.content.strip()
+
+
+# Production defaults. Groq (chat_with_grok) is kept available but unused.
+def chat_fast(prompt: str) -> str:
+    return chat_with_openai(prompt, model="gpt-5-nano", reasoning_effort="minimal")
+
+
+def chat_smart(prompt: str) -> str:
+    return chat_with_openai(prompt, model="gpt-5-mini", reasoning_effort="low")
 
 
 def chat_with_openai_5(prompt: str) -> str:
@@ -43,7 +54,7 @@ def chat_with_openai_5_mini(prompt: str) -> str:
 def chat_with_openai_5_nano(
     prompt: str,
 ) -> str:
-    return chat_with_openai(prompt, model="gpt-5-nano")
+    return chat_with_openai(prompt, model="gpt-5-nano", reasoning_effort="low")
 
 
 def chat_with_openai_4o(prompt: str) -> str:

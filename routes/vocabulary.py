@@ -1,6 +1,8 @@
+import asyncio
 from fastapi import APIRouter
 from tools.agent import SessionLocal
 from pydantic import BaseModel
+from utils.provider_errors import raise_openai_unavailable_if_provider_error
 from typing import Optional
 from services.app_service import (
     find_sentence_containing_word,
@@ -8,7 +10,7 @@ from services.app_service import (
 )
 
 from tools.chat_with_ai import (
-    chat_with_grok,
+    chat_fast,
 )
 
 router = APIRouter()
@@ -26,13 +28,16 @@ class VocabRequest(BaseModel):
 async def get_vocabulary(req: VocabRequest):
 
     db = SessionLocal()
-    vocabularies = await get_vocabularies(
-        db=db,
-        word_to_search=req.message,
-        limit=req.number_of_entries,
-        cefr_level=req.level,
-        pos=req.word_type,
-    )
+    try:
+        vocabularies = await get_vocabularies(
+            db=db,
+            word_to_search=req.message,
+            limit=req.number_of_entries,
+            cefr_level=req.level,
+            pos=req.word_type,
+        )
+    except Exception as exc:
+        raise_openai_unavailable_if_provider_error(exc)
 
     if not vocabularies:
         return {"response": "No vocabulary found."}
@@ -54,7 +59,10 @@ async def get_vocabulary(req: VocabRequest):
 
     prompt = build_vocab_prompt(data=data)
 
-    result = chat_with_grok(prompt=prompt)
+    try:
+        result = await asyncio.to_thread(chat_fast, prompt)
+    except Exception as exc:
+        raise_openai_unavailable_if_provider_error(exc)
     return {"response": result}
 
 

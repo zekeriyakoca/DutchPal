@@ -14,7 +14,7 @@ class ExplanationRequest(BaseModel):
 @router.post("/explain-grammar")
 async def explain_grammar_of_sentence(req: ExplanationRequest):
 
-    async with AsyncClient() as client:
+    async with AsyncClient(timeout=60) as client:
         try:
             result = await explain_grammar(client, req.message)
         except Exception as exc:

@@ -37,7 +37,7 @@ async def generate_quiz(req: QuizRequest):
         quiz_type=req.quiz_type,
     )
 
-    async with AsyncClient() as client:
+    async with AsyncClient(timeout=60) as client:
         deps = Deps(client=client, db=db)
         result = await language_agent.run(prompt, deps=deps)
         return {"response": agent_output(result)}

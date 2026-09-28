@@ -6,13 +6,8 @@ RUN npm ci
 
 COPY . .
 
-ARG PUBLIC_ORIGIN=https://dutchpal.lontray.art
-ENV PUBLIC_ORIGIN=$PUBLIC_ORIGIN
-
-# Keep the UI repo unchanged for now. The deploy source of truth owns the
-# production origin used by the image build.
-RUN node -e "const fs=require('fs'); const p='src/environments/environment.production.ts'; let s=fs.readFileSync(p,'utf8'); s=s.replace(/https:\\/\\/nest\\.lontray\\.shop/g, process.env.PUBLIC_ORIGIN); fs.writeFileSync(p,s);"
-
+# Production API URLs are same-origin relative paths (see environment.production.ts),
+# so the image works behind any host routed by the DutchPal IngressRoute.
 RUN npm run build:prod
 
 FROM nginx:1.27-alpine

@@ -21,7 +21,7 @@ class QueryRequest(BaseModel):
 
 @router.post("/ask")
 async def ask_language_agent(req: QueryRequest):
-    async with AsyncClient() as client:
+    async with AsyncClient(timeout=60) as client:
         db = SessionLocal()
         deps = Deps(client=client, db=db)
         prompt = build_prompt(

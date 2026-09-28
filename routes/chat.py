@@ -14,7 +14,7 @@ class ChatRequest(BaseModel):
 
 @router.post("/chat")
 async def chat(req: ChatRequest):
-    async with AsyncClient() as client:
+    async with AsyncClient(timeout=60) as client:
         db = SessionLocal()
         deps = Deps(client=client, db=db)
         try:
