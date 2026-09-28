@@ -34,9 +34,15 @@ def chat_with_openai(prompt: str, model="gpt-5", reasoning_effort=None) -> str:
     return response.choices[0].message.content.strip()
 
 
-# Production defaults. Groq (chat_with_grok) is kept available but unused.
+# Production defaults.
+# Simple tasks use Groq gpt-oss-20b (free tier), falling back to OpenAI gpt-5-nano
+# on any Groq failure (rate limit, timeout, outage).
 def chat_fast(prompt: str) -> str:
-    return chat_with_openai(prompt, model="gpt-5-nano", reasoning_effort="minimal")
+    try:
+        return chat_with_grok(prompt, model="openai/gpt-oss-20b", reasoning_effort="low")
+    except Exception as exc:
+        print(f"Groq failed, falling back to gpt-5-nano: {type(exc).__name__}: {exc}")
+        return chat_with_openai(prompt, model="gpt-5-nano", reasoning_effort="minimal")
 
 
 def chat_smart(prompt: str) -> str:
@@ -98,16 +104,23 @@ def chat_with_command_r_plus(prompt: str) -> str:
     return response.text.strip()
 
 
-def chat_with_grok(prompt: str, model="llama-3.1-8b-instant") -> str:
+def chat_with_grok(
+    prompt: str, model="openai/gpt-oss-20b", reasoning_effort=None
+) -> str:
+    # No retries and a short timeout so callers can fall back quickly.
     client = openai.OpenAI(
         api_key=os.getenv("GROQ_API_KEY"),
         base_url="https://api.groq.com/openai/v1",
+        max_retries=0,
+        timeout=20,
     )
 
+    extra = {"reasoning_effort": reasoning_effort} if reasoning_effort else {}
     response = client.chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.1,
+        **extra,
     )
     content = response.choices[0].message.content.strip()
 
