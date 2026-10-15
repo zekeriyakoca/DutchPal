@@ -49,6 +49,7 @@ source "$SECRETS_FILE"
 : "${OPENAI_API_KEY:?OPENAI_API_KEY is required in DevOps/k3s/secrets.env}"
 : "${GROQ_API_KEY:?GROQ_API_KEY is required in DevOps/k3s/secrets.env}"
 : "${CO_API_KEY:?CO_API_KEY is required in DevOps/k3s/secrets.env}"
+: "${NOTION_SECRET:?NOTION_SECRET is required in DevOps/k3s/secrets.env}"
 : "${LOGFIRE_TOKEN:=}"
 
 echo "Deploying DutchPal to $SSH_TARGET"
@@ -81,6 +82,7 @@ ssh -i "$KEY" -o ServerAliveInterval=30 -o ServerAliveCountMax=20 "$SSH_TARGET" 
   OPENAI_API_KEY="$OPENAI_API_KEY" \
   GROQ_API_KEY="$GROQ_API_KEY" \
   CO_API_KEY="$CO_API_KEY" \
+  NOTION_SECRET="$NOTION_SECRET" \
   LOGFIRE_TOKEN="$LOGFIRE_TOKEN" \
   'bash -s' << 'REMOTE'
 set -euo pipefail
@@ -110,6 +112,7 @@ kubectl -n "$NAMESPACE" create secret generic dutchpal-secrets \
   --from-literal=OPENAI_API_KEY="$OPENAI_API_KEY" \
   --from-literal=GROQ_API_KEY="$GROQ_API_KEY" \
   --from-literal=CO_API_KEY="$CO_API_KEY" \
+  --from-literal=NOTION_SECRET="$NOTION_SECRET" \
   --from-literal=LOGFIRE_TOKEN="$LOGFIRE_TOKEN" \
   --dry-run=client -o yaml | kubectl apply -f -
 

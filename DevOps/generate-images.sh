@@ -65,6 +65,9 @@ docker build \
   -t "$UI_IMAGE" \
   "$UI_REPO"
 
+# Block the push if any image contains secrets (they are public on Docker Hub).
+bash "$SCRIPT_DIR/scan-image-secrets.sh" "$AGENT_IMAGE" "$CORE_IMAGE" "$UI_IMAGE"
+
 if [[ "$PUSH" == "1" ]]; then
   docker push "$AGENT_IMAGE"
   docker push "$CORE_IMAGE"

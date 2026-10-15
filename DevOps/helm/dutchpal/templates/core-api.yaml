@@ -48,6 +48,11 @@ spec:
             {{- end }}
             - name: ConnectionStrings__DefaultConnection
               value: "Host=dutchpal-postgres;Port={{ .Values.postgres.port }};Database=$(POSTGRES_DB);Username=$(POSTGRES_USER);Password=$(POSTGRES_PASSWORD)"
+            - name: Notion__Secret
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret }}
+                  key: NOTION_SECRET
           resources:
             {{- toYaml .Values.coreApi.resources | nindent 12 }}
           startupProbe:

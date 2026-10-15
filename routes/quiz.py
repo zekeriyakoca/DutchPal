@@ -5,6 +5,7 @@ from tools.agent import language_agent, SessionLocal, Deps
 from pydantic import BaseModel
 from typing import Optional
 from utils.agent_result import agent_output
+from utils.provider_errors import raise_openai_unavailable_if_provider_error
 
 router = APIRouter()
 
@@ -39,7 +40,10 @@ async def generate_quiz(req: QuizRequest):
 
     async with AsyncClient(timeout=60) as client:
         deps = Deps(client=client, db=db)
-        result = await language_agent.run(prompt, deps=deps)
+        try:
+            result = await language_agent.run(prompt, deps=deps)
+        except Exception as exc:
+            raise_openai_unavailable_if_provider_error(exc)
         return {"response": agent_output(result)}
 
 

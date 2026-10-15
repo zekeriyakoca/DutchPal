@@ -23,3 +23,9 @@ build
 htmlcov
 coverage
 .tmp-deploy
+
+# Never ship deploy tooling or secrets in images
+DevOps
+**/secrets.env
+**/*.key
+**/*.pem
