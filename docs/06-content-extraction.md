@@ -21,6 +21,9 @@ Claude subscription.
 - One chapter per file. Record `pdf_pages` and `book_pages` (printed page numbers).
 - Run the validator after every chapter; fix all errors before moving on.
 - Start each extraction session fresh: long conversations make every page much more expensive.
+- Skip what costs a lot and teaches little (owner's decision, 2026-10-16): teacher hand-outs, classroom games, audio-only
+  discrimination tasks whose words are not printed, decorative images, and anything unreadable in the scan. Keep a short
+  stub (`id`, `label`, `book_page`, `type`, one-line `instruction`) or drop it entirely; never guess unreadable text.
 
 ## Steps per chapter
 
