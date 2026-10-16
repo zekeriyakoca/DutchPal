@@ -40,6 +40,23 @@ Claude subscription.
    ```
 5. Update the book's status in [05-product-roadmap.md](05-product-roadmap.md).
 
+## Loading into the database
+
+Tables are defined in `tools/content/models.py` (own SQLAlchemy `Base`, created with
+`create_all`; the old tables are not touched): `chapters` (one row per `book_id` + `number`,
+with `goals`, `culture`, `reflection` as JSONB), `dialogues`, `vocab_entries` (one row per word),
+`grammar_topics` (the flexible fields in `content`) and `exercises` (`type`, `answers_source`
+as columns, everything else per type in `payload`).
+
+```bash
+python tools/content/import.py content/<book-id>/ch*.json
+```
+
+Run from the repo root (reads `DATABASE_URL` from `.env`). Chapters with validation errors are
+refused. Re-running is safe: rows are upserted on their JSON ids (vocabulary on list/item
+position), rows removed from the JSON are deleted, and row ids stay stable. A non-local
+database needs `--allow-remote`; ask the owner first.
+
 ## Schema (v1)
 
 Top level: `schema_version`, `book {id, title, cefr}`, `chapter`, `dialogues`, `vocabulary`,
