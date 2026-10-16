@@ -55,6 +55,11 @@ Top level: `schema_version`, `book {id, title, cefr}`, `chapter`, `dialogues`, `
 | `culture[]` | culture / "In de praktijk" boxes |
 | `reflection` | `book_page`, `can_do []` |
 
+Books without printed page numbers, goals or glossary (e.g. Delftse A1/A2, screenshots of lesson texts): `chapter` carries
+`source_images []` instead of `book_pages` and `goals_printed: false` with empty `goals`. Dialogue lines may be
+`{speaker: null, text, narration: true}` for narrative paragraphs; `dialogues[].new_words []` lists the words the book
+prints in italics (new in that lesson, no translation printed); `kijk_goed []` lists the green look-up references.
+
 Exercise types (see `EXERCISE_TYPES` in the validator): `speaking_pair`, `speaking_roleplay`,
 `fill_gap`, `choose_option`, `personal_questions`, `teacher_material`, `classroom_activity`,
 `form_fill`, `listening_stress`, `matching`, `ordering`, `reading`, `listening`, `writing`,

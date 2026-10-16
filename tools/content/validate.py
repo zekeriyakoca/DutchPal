@@ -42,16 +42,21 @@ def validate(path: Path) -> tuple[list[str], list[str], dict]:
     data = json.loads(path.read_text(encoding="utf-8"))
     ch = data["chapter"]
 
-    first, last = ch["book_pages"]
-    missing = sorted(set(range(first, last + 1)) - book_pages_found(data))
-    if missing:
-        warnings.append(f"book pages without content: {missing}")
-    if not ch.get("goals"):
+    if ch.get("book_pages"):
+        first, last = ch["book_pages"]
+        missing = sorted(set(range(first, last + 1)) - book_pages_found(data))
+        if missing:
+            warnings.append(f"book pages without content: {missing}")
+    elif not ch.get("source_images"):
+        errors.append("chapter has neither book_pages nor source_images")
+    if not ch.get("goals") and ch.get("goals_printed", True):
         errors.append("chapter has no goals")
 
     for d in data.get("dialogues", []):
         for i, line in enumerate(d["lines"]):
-            if line.get("stage"):
+            if line.get("stage") or line.get("narration"):
+                if not line.get("text", "").strip():
+                    errors.append(f"{d['id']} line {i}: empty text")
                 continue
             if not line.get("speaker") or not line.get("text", "").strip():
                 errors.append(f"{d['id']} line {i}: missing speaker or text")
@@ -104,6 +109,7 @@ def validate(path: Path) -> tuple[list[str], list[str], dict]:
     stats = {
         "goals": len(ch.get("goals", [])),
         "dialogue_lines": sum(len(d["lines"]) for d in data.get("dialogues", [])),
+        "new_words": sum(len(d.get("new_words", [])) for d in data.get("dialogues", [])),
         "vocab_items": len(words),
         "unique_lemmas": len({i["lemma"].lower() for v in data.get("vocabulary", []) for i in v["items"]}),
         "grammar_topics": len(data.get("grammar", [])),
