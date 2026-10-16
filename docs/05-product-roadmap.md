@@ -47,7 +47,7 @@ Method and schema: [06-content-extraction.md](06-content-extraction.md).
 
 | Book | Source | Pages | Status |
 | --- | --- | ---: | --- |
-| NL in Gang | `repo-for-books/NL in Gang/NL in Gang.pdf` | 271 | ch01–ch16 done (pdf 1–193, book 17–209); ch17 starts pdf 194 |
+| NL in Gang | `repo-for-books/NL in Gang/NL in Gang.pdf` | 271 | done: ch01–ch16 (pdf 1–193, book 17–209); ch17+ skipped by owner decision (2026-10-16) |
 | Delftse A1/A2 | `repo-for-books/Delftse a1-a2/*.png` | 42 images | todo |
 | Short stories in Dutch | `reading-books/short stories in dutch (first 4 story).pdf` (same as the 4 split PDFs) | 83 | todo |
 | Er waren eens twee duifjes | `repo-for-books/aalberse_theo_er_waren_eens_twee_duifjes.pdf` | 16 | todo |
