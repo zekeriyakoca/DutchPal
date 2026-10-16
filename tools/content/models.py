@@ -39,6 +39,8 @@ class Chapter(Base):
     goals = Column(JSONB, nullable=False, default=list)
     culture = Column(JSONB, nullable=False, default=list)
     reflection = Column(JSONB, nullable=True)
+    source_images = Column(JSONB, nullable=False, default=list)  # books delivered as screenshots
+    note = Column(Text, nullable=True)
     imported_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     dialogues = relationship("Dialogue", back_populates="chapter", cascade="all, delete-orphan")
@@ -58,7 +60,8 @@ class Dialogue(Base):
     title = Column(String, nullable=True)
     book_page = Column(Integer, nullable=True)
     audio_tracks = Column(JSONB, nullable=False, default=list)
-    lines = Column(JSONB, nullable=False)  # [{speaker, text, stage?}]
+    lines = Column(JSONB, nullable=False)  # [{speaker, text, stage? | narration?}]
+    new_words = Column(JSONB, nullable=False, default=list)  # words printed in italics (no translation)
 
     chapter = relationship("Chapter", back_populates="dialogues")
 

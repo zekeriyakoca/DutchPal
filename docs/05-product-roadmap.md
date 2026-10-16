@@ -58,7 +58,7 @@ Method and schema: [06-content-extraction.md](06-content-extraction.md).
 
 - [ ] Extract every book chapter into `content/<book>/chXX.json`, validated with `tools/content/validate.py`.
 - [ ] Owner reviews generated answer keys (`answers_source: generated_needs_review`).
-- [x] New DB tables (`chapters`, `dialogues`, `vocab_entries`, `grammar_topics`, `exercises`) + importer script (`tools/content/import.py`). Old tables stay until the UI is switched. Local DB loaded with NL in Gang ch01–ch16 (2026-10-16).
+- [x] New DB tables (`chapters`, `dialogues`, `vocab_entries`, `grammar_topics`, `exercises`) + importer script (`tools/content/import.py`). Old tables stay until the UI is switched. Local DB loaded with NL in Gang ch01–ch16 and Delftse Les 1–42 (58 chapters, 2026-10-17).
 - [ ] Fix book metadata: drop duplicate short stories, correct CEFR labels.
 
 ### 1.2 Render stored data directly (no LLM)

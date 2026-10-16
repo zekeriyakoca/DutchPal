@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, delete, func, select, tuple_
+from sqlalchemy import create_engine, delete, func, select, text, tuple_
 from sqlalchemy.dialects.postgresql import insert
 
 from models import Base, Chapter, Dialogue, Exercise, GrammarTopic, VocabEntry
@@ -27,6 +27,12 @@ load_dotenv(env_file)
 
 LOCAL_HOSTS = {None, "", "localhost", "127.0.0.1", "::1"}
 GRAMMAR_FIELDS = {"id", "title", "book_page"}
+# Columns added after the first release; create_all does not alter existing tables.
+ADDED_COLUMNS = [
+    "ALTER TABLE chapters ADD COLUMN IF NOT EXISTS source_images JSONB NOT NULL DEFAULT '[]'",
+    "ALTER TABLE chapters ADD COLUMN IF NOT EXISTS note TEXT",
+    "ALTER TABLE dialogues ADD COLUMN IF NOT EXISTS new_words JSONB NOT NULL DEFAULT '[]'",
+]
 EXERCISE_FIELDS = {"id", "label", "book_page", "type", "instruction", "answers_source"}
 
 
@@ -67,6 +73,8 @@ def import_chapter(conn, data: dict) -> int:
         "goals": ch.get("goals", []),
         "culture": data.get("culture", []),
         "reflection": data.get("reflection"),
+        "source_images": ch.get("source_images", []),
+        "note": ch.get("note"),
     }
     stmt = insert(Chapter).values(chapter_row)
     stmt = stmt.on_conflict_do_update(
@@ -84,6 +92,7 @@ def import_chapter(conn, data: dict) -> int:
             "book_page": d.get("book_page"),
             "audio_tracks": d.get("audio_tracks", []),
             "lines": d["lines"],
+            "new_words": d.get("new_words", []),
         }
         for i, d in enumerate(data.get("dialogues", []))
     ]
@@ -166,6 +175,8 @@ def main() -> int:
 
     Base.metadata.create_all(engine)
     with engine.begin() as conn:
+        for ddl in ADDED_COLUMNS:
+            conn.execute(text(ddl))
         for path, data in chapters:
             chapter_id = import_chapter(conn, data)
             print(f"{path}: chapter {data['chapter']['number']} -> chapters.id {chapter_id}")
