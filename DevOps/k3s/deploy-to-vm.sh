@@ -48,7 +48,7 @@ source "$SECRETS_FILE"
 : "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in DevOps/k3s/secrets.env}"
 : "${OPENAI_API_KEY:?OPENAI_API_KEY is required in DevOps/k3s/secrets.env}"
 : "${GROQ_API_KEY:?GROQ_API_KEY is required in DevOps/k3s/secrets.env}"
-: "${CO_API_KEY:?CO_API_KEY is required in DevOps/k3s/secrets.env}"
+: "${CO_API_KEY:=}"
 : "${NOTION_SECRET:?NOTION_SECRET is required in DevOps/k3s/secrets.env}"
 : "${LOGFIRE_TOKEN:=}"
 

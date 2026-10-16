@@ -18,9 +18,6 @@ CO_API_KEY = os.getenv("CO_API_KEY")  # for Cohere (Command-R+)
 # Configure OpenAI client (for both GPT-4 and DeepSeek)
 openai.api_key = OPENAI_API_KEY
 
-# Configure Cohere client
-co = cohere.Client(CO_API_KEY)
-
 
 def chat_with_openai(prompt: str, model="gpt-5", reasoning_effort=None) -> str:
     extra = {"reasoning_effort": reasoning_effort} if reasoning_effort else {}
@@ -96,6 +93,8 @@ def chat_with_deepseek(prompt: str, model="deepseek-chat") -> str:
 
 
 def chat_with_command_r_plus(prompt: str) -> str:
+    # Unused in production; created lazily so CO_API_KEY is optional.
+    co = cohere.Client(CO_API_KEY)
     response = co.chat(
         model="command-r-plus",
         message=prompt,
