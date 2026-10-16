@@ -1,0 +1,109 @@
+"""Validate extracted book chapters in content/<book>/chXX.json.
+
+Usage: python tools/content/validate.py content/nl-in-gang/ch01.json [...]
+Exits non-zero if any chapter has errors.
+"""
+
+import json
+import sys
+from collections import Counter
+from pathlib import Path
+
+EXERCISE_TYPES = {
+    "speaking_pair", "speaking_roleplay", "fill_gap", "choose_option",
+    "personal_questions", "teacher_material", "classroom_activity",
+    "form_fill", "listening_stress", "matching", "ordering", "reading",
+    "listening", "writing",
+}
+ARTICLES = {"de", "het"}
+
+
+def book_pages_found(chapter: dict) -> set[int]:
+    pages = set()
+
+    def walk(node):
+        if isinstance(node, dict):
+            if isinstance(node.get("book_page"), int):
+                pages.add(node["book_page"])
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(chapter)
+    return pages
+
+
+def validate(path: Path) -> tuple[list[str], list[str], dict]:
+    errors, warnings = [], []
+    data = json.loads(path.read_text(encoding="utf-8"))
+    ch = data["chapter"]
+
+    first, last = ch["book_pages"]
+    missing = sorted(set(range(first, last + 1)) - book_pages_found(data))
+    if missing:
+        warnings.append(f"book pages without content: {missing}")
+    if not ch.get("goals"):
+        errors.append("chapter has no goals")
+
+    for d in data.get("dialogues", []):
+        for i, line in enumerate(d["lines"]):
+            if not line.get("speaker") or not line.get("text", "").strip():
+                errors.append(f"{d['id']} line {i}: missing speaker or text")
+
+    words = []
+    for vlist in data.get("vocabulary", []):
+        for item in vlist["items"]:
+            words.append(item["nl"])
+            if not item.get("en"):
+                errors.append(f"vocab '{item['nl']}': missing translation")
+            if not item.get("lemma"):
+                errors.append(f"vocab '{item['nl']}': missing lemma")
+            if item.get("article") and item["article"] not in ARTICLES:
+                errors.append(f"vocab '{item['nl']}': bad article {item['article']}")
+    dupes = [w for w, n in Counter(words).items() if n > 1]
+    if dupes:
+        warnings.append(f"vocab repeated across lists (ok if intended): {dupes}")
+
+    for ex in data.get("exercises", []):
+        if ex["type"] not in EXERCISE_TYPES:
+            errors.append(f"{ex['id']}: unknown type {ex['type']}")
+        if ex["type"] == "fill_gap":
+            for item in ex["items"]:
+                gaps = item["text"].count("___")
+                if gaps != len(item.get("answers", [])):
+                    errors.append(f"{ex['id']} #{item['n']}: {gaps} gaps but {len(item.get('answers', []))} answers")
+        if ex["type"] == "choose_option":
+            for item in ex["items"]:
+                if item.get("answer") not in item.get("options", []):
+                    errors.append(f"{ex['id']} #{item['n']}: answer not in options")
+
+    stats = {
+        "goals": len(ch.get("goals", [])),
+        "dialogue_lines": sum(len(d["lines"]) for d in data.get("dialogues", [])),
+        "vocab_items": len(words),
+        "unique_lemmas": len({i["lemma"].lower() for v in data.get("vocabulary", []) for i in v["items"]}),
+        "grammar_topics": len(data.get("grammar", [])),
+        "exercises": len(data.get("exercises", [])),
+        "interactive_items": sum(len(e.get("items", [])) for e in data.get("exercises", []) if e["type"] in {"fill_gap", "choose_option"}),
+        "can_do": len(data.get("reflection", {}).get("can_do", [])),
+    }
+    return errors, warnings, stats
+
+
+def main() -> int:
+    failed = False
+    for arg in sys.argv[1:]:
+        errors, warnings, stats = validate(Path(arg))
+        print(f"{arg}: {'OK' if not errors else 'FAILED'}  {stats}")
+        for w in warnings:
+            print(f"  warning: {w}")
+        for e in errors:
+            print(f"  error: {e}")
+        failed |= bool(errors)
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -194,4 +194,4 @@ DevOps/k3s/secrets.env
 .tmp-deploy/
 
 # Book content extracted for personal use only - never commit or ship in images
-content/
+/content/
