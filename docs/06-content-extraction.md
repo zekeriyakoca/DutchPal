@@ -45,18 +45,24 @@ Top level: `schema_version`, `book {id, title, cefr}`, `chapter`, `dialogues`, `
 | Field | Shape |
 | --- | --- |
 | `chapter` | `number`, `title`, `pdf_pages [first,last]`, `book_pages [first,last]`, `goals []` (from the cover box) |
-| `dialogues[]` | `id`, `title`, `audio_tracks []` (CD track labels like `1-1`), `book_page`, `lines [{speaker, text}]` |
+| `dialogues[]` | `id`, `title`, `audio_tracks []` (CD track labels like `1-1`), `book_page`, `lines [{speaker, text}]`; stage directions like `(een poosje later)` are `{speaker: null, text, stage: true}` |
 | `vocabulary[]` | one entry per printed list: `list`, `book_page`, `items [{nl, lemma, article?, form?, en}]`. `nl` = as printed, `lemma` = dictionary form, `form` = inflected form when the list shows `form (lemma)` |
-| `grammar[]` | `id`, `title`, `book_page`, plus whatever fits: `pairs [{q,a}]`, `table {columns, rows}`, `examples []`, `conjugation {verbs, rows [{pronoun, forms}]}`, `numbers {}`, `note` |
-| `exercises[]` | `id`, `label` (e.g. `Opdracht 2`), `book_page`, `type`, `instruction`, and per type: `items`, `prompts`, `example`, `fields` |
+| `grammar[]` | `id`, `title`, `book_page`, plus whatever fits: `pairs [{q,a}]`, `table {columns, rows}`, `examples []`, `highlight []` (words the book prints in colour), `phrases []`, `conjugation {verbs, rows [{pronoun, forms}]}`, `numbers {}`, `times {}`, `months []`, `seasons []`, `scale` / `responses [{polarity, text}]`, `note` |
+| `exercises[]` | `id`, `label` (e.g. `Opdracht 2`), `book_page`, `type`, `instruction`, and per type: `items`, `prompts`, `example`, `fields`, `parts [{label, instruction}]` (A/B sub-tasks), `steps [{role, text}]` (role-play script), `words []`, `lines [[...]]` (pronunciation rows), `source_text`, `menu` |
 | `culture[]` | culture / "In de praktijk" boxes |
 | `reflection` | `book_page`, `can_do []` |
 
 Exercise types (see `EXERCISE_TYPES` in the validator): `speaking_pair`, `speaking_roleplay`,
 `fill_gap`, `choose_option`, `personal_questions`, `teacher_material`, `classroom_activity`,
-`form_fill`, `listening_stress`, `matching`, `ordering`, `reading`, `listening`, `writing`.
+`form_fill`, `listening_stress`, `matching`, `ordering`, `reading`, `listening`, `writing`,
+`comprehension_questions`, `puzzle`, `pronunciation`, `rewrite`, `word_stress`.
 
 - `fill_gap`: `text` uses `___` per gap; `answers` has one entry per gap; alternatives joined with `|` (`"Zij|Ze"`).
+- `fill_gap` items may carry `response` (the printed answer sentence the gap is checked against) or `cue` (the printed prompt); the exercise may carry a word bank in `options`.
 - `choose_option`: `text` with `{a/b}`, `options [a,b]`, `answer` (must be one of the options).
+- `comprehension_questions` (Vragen bij de dialoog), `puzzle`, `reading`: `items [{n, q, a, options?}]`; with `options`, `a` must be one of them (true/false = `["waar", "niet waar"]`). `puzzle` also has `given` (the printed grid/clues).
+- `rewrite`: `items [{n, text, focus? | cue?, a}]` — rewrite `text` (start with `focus`, or answer using `cue`).
+- `word_stress`: `items [{n, word, stressed}]`; `stressed` must be a substring of `word`.
+- `pronunciation`: `audio_tracks`, `lines [[word, ...]]` to listen and repeat. Audio-only discrimination tasks (words not printed) are `listening` with `rows` / `columns`.
 
 New types or fields: add them to the validator and this table in the same change.

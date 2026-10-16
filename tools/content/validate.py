@@ -13,8 +13,10 @@ EXERCISE_TYPES = {
     "speaking_pair", "speaking_roleplay", "fill_gap", "choose_option",
     "personal_questions", "teacher_material", "classroom_activity",
     "form_fill", "listening_stress", "matching", "ordering", "reading",
-    "listening", "writing",
+    "listening", "writing", "comprehension_questions", "puzzle",
+    "pronunciation", "rewrite", "word_stress",
 }
+QA_TYPES = {"comprehension_questions", "puzzle", "reading"}
 ARTICLES = {"de", "het"}
 
 
@@ -49,6 +51,8 @@ def validate(path: Path) -> tuple[list[str], list[str], dict]:
 
     for d in data.get("dialogues", []):
         for i, line in enumerate(d["lines"]):
+            if line.get("stage"):
+                continue
             if not line.get("speaker") or not line.get("text", "").strip():
                 errors.append(f"{d['id']} line {i}: missing speaker or text")
 
@@ -74,6 +78,20 @@ def validate(path: Path) -> tuple[list[str], list[str], dict]:
                 gaps = item["text"].count("___")
                 if gaps != len(item.get("answers", [])):
                     errors.append(f"{ex['id']} #{item['n']}: {gaps} gaps but {len(item.get('answers', []))} answers")
+        if ex["type"] in QA_TYPES:
+            for item in ex.get("items", []):
+                if not item.get("q") or not item.get("a"):
+                    errors.append(f"{ex['id']} #{item['n']}: missing q or a")
+                if item.get("options") and item.get("a") not in item["options"]:
+                    errors.append(f"{ex['id']} #{item['n']}: answer not in options")
+        if ex["type"] == "rewrite":
+            for item in ex["items"]:
+                if not item.get("a"):
+                    errors.append(f"{ex['id']} #{item['n']}: missing a")
+        if ex["type"] == "word_stress":
+            for item in ex["items"]:
+                if item.get("stressed", "").lower() not in item["word"].lower():
+                    errors.append(f"{ex['id']} #{item['n']}: stressed part not in word")
         if ex["type"] == "choose_option":
             for item in ex["items"]:
                 if item.get("answer") not in item.get("options", []):
