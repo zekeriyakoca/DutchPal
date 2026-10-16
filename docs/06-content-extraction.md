@@ -55,7 +55,7 @@ Top level: `schema_version`, `book {id, title, cefr}`, `chapter`, `dialogues`, `
 Exercise types (see `EXERCISE_TYPES` in the validator): `speaking_pair`, `speaking_roleplay`,
 `fill_gap`, `choose_option`, `personal_questions`, `teacher_material`, `classroom_activity`,
 `form_fill`, `listening_stress`, `matching`, `ordering`, `reading`, `listening`, `writing`,
-`comprehension_questions`, `puzzle`, `pronunciation`, `rewrite`, `word_stress`.
+`comprehension_questions`, `puzzle`, `pronunciation`, `rewrite`, `word_stress`, `dialogue_completion`.
 
 - `fill_gap`: `text` uses `___` per gap; `answers` has one entry per gap; alternatives joined with `|` (`"Zij|Ze"`).
 - `fill_gap` items may carry `response` (the printed answer sentence the gap is checked against) or `cue` (the printed prompt); the exercise may carry a word bank in `options`.
@@ -63,6 +63,7 @@ Exercise types (see `EXERCISE_TYPES` in the validator): `speaking_pair`, `speaki
 - `comprehension_questions` (Vragen bij de dialoog), `puzzle`, `reading`: `items [{n, q, a, options?}]`; with `options`, `a` must be one of them (true/false = `["waar", "niet waar"]`). `puzzle` also has `given` (the printed grid/clues).
 - `rewrite`: `items [{n, text, focus? | cue?, a}]` — rewrite `text` (start with `focus`, or answer using `cue`).
 - `word_stress`: `items [{n, word, stressed}]`; `stressed` must be a substring of `word`.
+- `dialogue_completion`: `lines [{speaker, text, model?}]`; every line whose `text` has `___` needs a `model` answer.
 - `pronunciation`: `audio_tracks`, `lines [[word, ...]]` to listen and repeat. Audio-only discrimination tasks (words not printed) are `listening` with `rows` / `columns`.
 
 New types or fields: add them to the validator and this table in the same change.

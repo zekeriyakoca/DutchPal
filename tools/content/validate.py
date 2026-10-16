@@ -14,7 +14,7 @@ EXERCISE_TYPES = {
     "personal_questions", "teacher_material", "classroom_activity",
     "form_fill", "listening_stress", "matching", "ordering", "reading",
     "listening", "writing", "comprehension_questions", "puzzle",
-    "pronunciation", "rewrite", "word_stress",
+    "pronunciation", "rewrite", "word_stress", "dialogue_completion",
 }
 QA_TYPES = {"comprehension_questions", "puzzle", "reading"}
 ARTICLES = {"de", "het"}
@@ -92,6 +92,10 @@ def validate(path: Path) -> tuple[list[str], list[str], dict]:
             for item in ex["items"]:
                 if item.get("stressed", "").lower() not in item["word"].lower():
                     errors.append(f"{ex['id']} #{item['n']}: stressed part not in word")
+        if ex["type"] == "dialogue_completion":
+            for i, line in enumerate(ex["lines"]):
+                if "___" in line["text"] and not line.get("model"):
+                    errors.append(f"{ex['id']} line {i}: gap without model answer")
         if ex["type"] == "choose_option":
             for item in ex["items"]:
                 if item.get("answer") not in item.get("options", []):
