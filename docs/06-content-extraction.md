@@ -98,6 +98,11 @@ Books without printed page numbers, goals or glossary (e.g. Delftse A1/A2, scree
 `{speaker: null, text, narration: true}` for narrative paragraphs; `dialogues[].new_words []` lists the words the book
 prints in italics (new in that lesson, no translation printed); `kijk_goed []` lists the green look-up references.
 
+Authored courses (not printed in any book, e.g. `dutch-grammar-in-use`, modelled on the unit structure of Murphy's
+*English Grammar in Use*): `chapter` carries `authored: true` instead of `book_pages` / `source_images`, a `note`
+saying the content is generated, and optionally `based_on {book, units []}` (the model book's units it replaces).
+Every exercise must have `"answers_source": "generated_needs_review"`. No `book_page` fields.
+
 Exercise types (see `EXERCISE_TYPES` in the validator): `speaking_pair`, `speaking_roleplay`,
 `fill_gap`, `choose_option`, `personal_questions`, `teacher_material`, `classroom_activity`,
 `form_fill`, `listening_stress`, `matching`, `ordering`, `reading`, `listening`, `writing`,
