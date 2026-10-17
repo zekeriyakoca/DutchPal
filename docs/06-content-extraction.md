@@ -57,6 +57,27 @@ refused. Re-running is safe: rows are upserted on their JSON ids (vocabulary on 
 position), rows removed from the JSON are deleted, and row ids stay stable. A non-local
 database needs `--allow-remote`; ask the owner first.
 
+## Content API
+
+Read-only JSON endpoints in `routes/content.py` serve the tables as stored (no LLM). Field names
+are a contract with the UI; change both together.
+
+| Endpoint | Response |
+| --- | --- |
+| `GET /content/books` | `[{book_id, title, cefr, chapter_count}]` |
+| `GET /content/books/{book_id}/chapters` | `[{id, number, title, goals [], has_exercises}]`, ordered by `number` |
+| `GET /content/chapters/{id}` | `{id, book_id, book_title, number, title, goals, note, book_pages [first,last] \| null, dialogues, vocabulary, grammar, exercises, culture, reflection}` |
+
+- `dialogues[]`: `{id, title, audio_tracks, lines [{speaker, text, stage?, narration?}], new_words []}`.
+- `vocabulary[]`: one entry per printed list, `{list, book_page, items [{nl, lemma, article, form, en}]}`.
+- `grammar[]`: `{id, title, book_page, content}`; `exercises[]`: `{id, label, type, instruction, book_page, answers_source, payload}`.
+- Chapter and exercise `id` are database ids; dialogue and grammar `id` are the JSON ids (`ch01-d1`).
+  Lists keep book order. Exercise answers stay in `payload`; the UI checks them client-side.
+- An unknown book or chapter returns 404 with a `detail` message.
+
+Tests: `python -m pytest tests/test_content_api.py` (synthetic data, in-memory SQLite; set
+`TEST_DATABASE_URL` to a throwaway Postgres database to run them on Postgres).
+
 ## Schema (v1)
 
 Top level: `schema_version`, `book {id, title, cefr}`, `chapter`, `dialogues`, `vocabulary`,

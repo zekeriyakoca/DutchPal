@@ -1,6 +1,6 @@
 # DutchPal product roadmap
 
-> Last updated: 2026-10-16
+> Last updated: 2026-10-17
 > Goal: a high-quality, stable Dutch study tool built on the owner's own textbooks.
 > Order: **stable MVP → stable features → richer features**. Security hardening comes last.
 
@@ -64,6 +64,8 @@ Method and schema: [06-content-extraction.md](06-content-extraction.md).
 ### 1.2 Render stored data directly (no LLM)
 - [ ] `/vocabulary` and `/sentences` return JSON; the UI renders tables. Removes LLM formatting errors, ~0.5 s, free.
 - [ ] Study Book reads the new chapter structure: goals, dialogue with speakers, word list, grammar, exercises.
+  - [x] API: read-only `/content/...` endpoints serve the content tables ([Content API](06-content-extraction.md#content-api)).
+  - [ ] UI: chapter view on top of it (DutchPal-UI).
 
 ### 1.3 Interactive practice
 - [ ] Book exercises of type `fill_gap` / `choose_option` playable in the UI with feedback and score.
