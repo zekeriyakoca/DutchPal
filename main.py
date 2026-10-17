@@ -10,6 +10,7 @@ from routes import (
     translate,
     bootstrap,
     translate_word,
+    content,
 )
 
 app = FastAPI(root_path="/dutchpal-api")
@@ -44,3 +45,4 @@ app.include_router(quiz.router)
 app.include_router(grammar.router)
 app.include_router(translate.router)
 app.include_router(translate_word.router)
+app.include_router(content.router)
