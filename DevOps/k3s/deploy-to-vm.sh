@@ -50,7 +50,13 @@ source "$SECRETS_FILE"
 : "${GROQ_API_KEY:?GROQ_API_KEY is required in DevOps/k3s/secrets.env}"
 : "${CO_API_KEY:=}"
 : "${NOTION_SECRET:?NOTION_SECRET is required in DevOps/k3s/secrets.env}"
+: "${NOTION_NOUN_DB_ID:?NOTION_NOUN_DB_ID is required in DevOps/k3s/secrets.env}"
+: "${NOTION_VERB_DB_ID:?NOTION_VERB_DB_ID is required in DevOps/k3s/secrets.env}"
 : "${LOGFIRE_TOKEN:=}"
+# Sign-in is optional: without these the app works anonymously.
+: "${GOOGLE_CLIENT_ID:=}"
+: "${SESSION_SECRET:=}"
+: "${SETTINGS_ENCRYPTION_KEY:=}"
 
 echo "Deploying DutchPal to $SSH_TARGET"
 echo "  namespace: $NAMESPACE"
@@ -83,7 +89,12 @@ ssh -i "$KEY" -o ServerAliveInterval=30 -o ServerAliveCountMax=20 "$SSH_TARGET" 
   GROQ_API_KEY="$GROQ_API_KEY" \
   CO_API_KEY="$CO_API_KEY" \
   NOTION_SECRET="$NOTION_SECRET" \
+  NOTION_NOUN_DB_ID="$NOTION_NOUN_DB_ID" \
+  NOTION_VERB_DB_ID="$NOTION_VERB_DB_ID" \
   LOGFIRE_TOKEN="$LOGFIRE_TOKEN" \
+  GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
+  SESSION_SECRET="$SESSION_SECRET" \
+  SETTINGS_ENCRYPTION_KEY="$SETTINGS_ENCRYPTION_KEY" \
   'bash -s' << 'REMOTE'
 set -euo pipefail
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
@@ -113,7 +124,12 @@ kubectl -n "$NAMESPACE" create secret generic dutchpal-secrets \
   --from-literal=GROQ_API_KEY="$GROQ_API_KEY" \
   --from-literal=CO_API_KEY="$CO_API_KEY" \
   --from-literal=NOTION_SECRET="$NOTION_SECRET" \
+  --from-literal=NOTION_NOUN_DB_ID="$NOTION_NOUN_DB_ID" \
+  --from-literal=NOTION_VERB_DB_ID="$NOTION_VERB_DB_ID" \
   --from-literal=LOGFIRE_TOKEN="$LOGFIRE_TOKEN" \
+  --from-literal=GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
+  --from-literal=SESSION_SECRET="$SESSION_SECRET" \
+  --from-literal=SETTINGS_ENCRYPTION_KEY="$SETTINGS_ENCRYPTION_KEY" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 echo "Running Helm lint..."
