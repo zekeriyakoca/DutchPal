@@ -5,9 +5,10 @@ Exits non-zero if any chapter has errors.
 """
 
 import json
+import os
 import sys
 from collections import Counter
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 EXERCISE_TYPES = {
     "speaking_pair", "speaking_roleplay", "fill_gap", "choose_option",
@@ -15,9 +16,37 @@ EXERCISE_TYPES = {
     "form_fill", "listening_stress", "matching", "ordering", "reading",
     "listening", "writing", "comprehension_questions", "puzzle",
     "pronunciation", "rewrite", "word_stress", "dialogue_completion",
+    "speaking",
 }
 QA_TYPES = {"comprehension_questions", "puzzle", "reading"}
 ARTICLES = {"de", "het"}
+# Media paths in exercises are relative to the media root served at /media (see routes/media.py).
+MEDIA_DIR = Path(os.getenv("MEDIA_DIR", "media"))
+
+
+def media_errors(ex: dict, warnings: list[str]) -> list[str]:
+    """Check audio/video/images/option_images paths: relative, no '..', and (warning) present locally."""
+    paths = [ex[k] for k in ("audio", "video") if k in ex]
+    paths += ex.get("images", []) + ex.get("option_images", [])
+    errors = []
+    for p in paths:
+        pure = PurePosixPath(p) if isinstance(p, str) else None
+        if not pure or not p or pure.is_absolute() or ".." in pure.parts or "\\" in p:
+            errors.append(f"{ex['id']}: bad media path {p!r}")
+        elif not (MEDIA_DIR / p).is_file():
+            warnings.append(f"{ex['id']}: media file not found under {MEDIA_DIR}: {p}")
+    return errors
+
+
+def mc_errors(ex: dict) -> list[str]:
+    """Multiple-choice items [{n, q, options, a}] with `a` one of the options."""
+    errors = []
+    for item in ex.get("items", []):
+        if not item.get("q") or not item.get("options") or item.get("a") not in item["options"]:
+            errors.append(f"{ex['id']} #{item.get('n')}: needs q, options and an answer from the options")
+    if "option_images" in ex and any(len(ex["option_images"]) != len(i["options"]) for i in ex.get("items", [])):
+        errors.append(f"{ex['id']}: option_images and options differ in length")
+    return errors
 
 
 def book_pages_found(chapter: dict) -> set[int]:
@@ -117,6 +146,23 @@ def validate(path: Path) -> tuple[list[str], list[str], dict]:
             for item in ex["items"]:
                 if item.get("answer") not in item.get("options", []):
                     errors.append(f"{ex['id']} #{item['n']}: answer not in options")
+        # Exam-style shapes (staatsexamen-b1): audio-backed listening, writing with criteria, speaking.
+        if ex["type"] == "listening" and "audio" in ex:
+            if not isinstance(ex.get("items"), list):
+                errors.append(f"{ex['id']}: listening with audio needs items (may be empty for an intro)")
+            errors += mc_errors(ex)
+        if ex["type"] == "writing" and "criteria" in ex:
+            if not ex.get("prompt") or not ex["criteria"] or not all(isinstance(c, str) and c for c in ex["criteria"]):
+                errors.append(f"{ex['id']}: writing needs a prompt and non-empty criteria strings")
+            for item in ex.get("items", []):
+                if not item.get("q"):
+                    errors.append(f"{ex['id']} #{item.get('n')}: missing q")
+        if ex["type"] == "speaking":
+            if not ex.get("audio") or not ex.get("prompt") or not isinstance(ex.get("criteria"), list):
+                errors.append(f"{ex['id']}: speaking needs audio, prompt and a criteria list")
+        if ex["type"] == "reading" and "title" in ex and not ex.get("text"):
+            errors.append(f"{ex['id']}: reading with a title needs text")
+        errors += media_errors(ex, warnings)
 
     stats = {
         "goals": len(ch.get("goals", [])),

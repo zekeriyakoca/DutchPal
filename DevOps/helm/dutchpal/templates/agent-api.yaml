@@ -46,6 +46,16 @@ spec:
               value: dutchpal-agent-api
             - name: DATABASE_URL
               value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@dutchpal-postgres:{{ .Values.postgres.port }}/$(POSTGRES_DB)"
+            {{- if .Values.media.enabled }}
+            - name: MEDIA_DIR
+              value: {{ .Values.media.mountPath | quote }}
+            {{- end }}
+          {{- if .Values.media.enabled }}
+          volumeMounts:
+            - name: media
+              mountPath: {{ .Values.media.mountPath }}
+              readOnly: true
+          {{- end }}
           resources:
             {{- toYaml .Values.agentApi.resources | nindent 12 }}
           startupProbe:
@@ -68,6 +78,13 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 15
             failureThreshold: 5
+      {{- if .Values.media.enabled }}
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: dutchpal-media
+            readOnly: true
+      {{- end }}
 ---
 apiVersion: v1
 kind: Service

@@ -16,6 +16,7 @@ from routes import (
     auth,
     settings,
     notion,
+    media,
 )
 from services import users
 from tools.agent import engine
@@ -70,3 +71,4 @@ app.include_router(word.router)
 app.include_router(auth.router)
 app.include_router(settings.router)
 app.include_router(notion.router)
+app.include_router(media.router)

@@ -1,0 +1,20 @@
+{{- if .Values.media.enabled }}
+# Exam audio/video/pictures served by the agent API at /media (routes/media.py). Filled by hand with
+# kubectl cp (docs/01-production-deployment.md); kept when the release is uninstalled.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dutchpal-media
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/component: media
+    {{- include "dutchpal.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: {{ .Values.media.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.media.storage }}
+{{- end }}

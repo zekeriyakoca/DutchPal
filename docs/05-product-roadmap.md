@@ -54,6 +54,7 @@ Method and schema: [06-content-extraction.md](06-content-extraction.md).
 | Grammar in Use (partial) | `repo-for-books/partial-grammar-in-use.pdf` | 18 | skipped: replaced by the authored Dutch grammar course (`dutch-grammar-in-use`) |
 | Teach Yourself (partial) | `repo-for-books/teach_yourself/…pdf` | 7 | done: 2 chapters → `content/teach-yourself-dutch/ch01–ch02.json` (unit 1 without its cover page, book 2–10; unit 2 up to the 'How to' summary, book 11–15) |
 | B1 Examen 2024 | `data/B1 Examen 2024.md` | text | done: 6 reading texts → `content/b1-examen-2024/ch01–ch06.json` (questions 1–35 as `reading` exercises with the exam's own answer key) |
+| Staatsexamen Nt2 B1 oefenexamens 2023–2025 | `repo-for-books/staatsexamen-b1/` (booklets, beoordelingsmodellen, audio/video zips) | 24 PDFs | done: 12 chapters (year × Lezen/Luisteren/Schrijven/Spreken) → `content/staatsexamen-b1/ch01–ch12.json`; official keys and criteria; media in `media/staatsexamen-b1/`, served at `/media` |
 | appel b1 | **source missing** | — | skipped: no source file |
 
 - [ ] Extract every book chapter into `content/<book>/chXX.json`, validated with `tools/content/validate.py`.

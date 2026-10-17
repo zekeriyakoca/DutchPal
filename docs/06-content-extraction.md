@@ -125,7 +125,7 @@ them into items and refuses a list whose words are not in the chapter text or th
 Exercise types (see `EXERCISE_TYPES` in the validator): `speaking_pair`, `speaking_roleplay`,
 `fill_gap`, `choose_option`, `personal_questions`, `teacher_material`, `classroom_activity`,
 `form_fill`, `listening_stress`, `matching`, `ordering`, `reading`, `listening`, `writing`,
-`comprehension_questions`, `puzzle`, `pronunciation`, `rewrite`, `word_stress`, `dialogue_completion`.
+`comprehension_questions`, `puzzle`, `pronunciation`, `rewrite`, `word_stress`, `dialogue_completion`, `speaking`.
 
 - `fill_gap`: `text` uses `___` per gap; `answers` has one entry per gap; alternatives joined with `|` (`"Zij|Ze"`).
 - `fill_gap` items may carry `response` (the printed answer sentence the gap is checked against) or `cue` (the printed prompt); the exercise may carry a word bank in `options`.
@@ -137,3 +137,27 @@ Exercise types (see `EXERCISE_TYPES` in the validator): `speaking_pair`, `speaki
 - `pronunciation`: `audio_tracks`, `lines [[word, ...]]` to listen and repeat. Audio-only discrimination tasks (words not printed) are `listening` with `rows` / `columns`.
 
 New types or fields: add them to the validator and this table in the same change.
+
+## Exams with media (`staatsexamen-b1`)
+
+The official Staatsexamen Nt2 Programma I (B1) sample exams 2023–2025 (`repo-for-books/staatsexamen-b1/`): 12
+chapters, one per year × skill, numbered 1–12 as 2023 Lezen, Luisteren, Schrijven, Spreken, 2024 …, 2025 …
+(title `2024 · Luisteren`). `chapter` carries `source_files` (booklet, beoordelingsmodel, media zip) and
+`goals_printed: false`. Answers, keys and criteria come from the beoordelingsmodel, so every exercise has
+`"answers_source": "book"`. Builders: `content/staatsexamen-b1/_build/` (`lezen.py`, `luisteren.py`,
+`schrijven.py`, `spreken.py`; transcriptions in `src/`, pictures cropped by `images.py`, which needs PyMuPDF).
+
+Media (audio, video, pictures) live under the media root (`MEDIA_DIR`, default `./media`, git- and
+dockerignored), unzipped to `media/staatsexamen-b1/<year>-<skill>/`, and are served by the agent API at
+`GET /media/{path}` ([routes/media.py](../routes/media.py)). Exercise media paths are relative to that root,
+e.g. `staatsexamen-b1/2024-luisteren/Track 3 opgave 1.mp3`; file names contain spaces, so the UI URL-encodes
+each path segment. Formats: `.opus` (Ogg Opus), `.mp3`, `.webm` (video), `.png` (pictures).
+
+| Type | Payload |
+| --- | --- |
+| `reading` | `title`, `text`, `items [{n, q, options, a}]`; `instruction` = the grey line above the text. `text` is light Markdown: paragraphs separated by a blank line, `###` headings, `**bold**` (also underlined words), `- ` list items, Markdown tables; a single newline inside a paragraph is a line break (addresses) |
+| `listening` | `audio`, `video?`, `images?`, `option_images?`, `items [{n, q, options, a}]`. One exercise per opgave (one fragment, one question). Each text starts with an intro exercise: `label` = the intro title, `instruction` = the printed introduction, its own `audio` (the intro track; for the video part `video` is the start of the film), `items` empty or one example question with `n: 0`. For video opgaven `audio` and `video` are the same `.webm`. Questions with picture answers have `options` `["A", "B", "C"]` and `option_images` (same order) |
+| `writing` | `situation` (context, may hold a Markdown table), `prompt`, `items?` (form questions `[{n, q}]`), `images?`, `criteria []`. For the sentence tasks `prompt` is the e-mail/message to complete with `___` for the part the candidate writes; for the longer tasks it is the Opdracht followed by the frame of the text. `criteria` = the beoordelingsmodel's points per aspect, one string each |
+| `speaking` | `audio` (the opgave's track), `prompt` (booklet text), `images?`, `criteria []` (one string per aspect: name, then the score lines, e.g. `Inhoud\n0: …\n1: …`). Each deel starts with a `speaking` exercise for the instruction track with its example; it has no criteria |
+
+The beoordelingsmodellen print no model answers, so `model_answer` is not used.

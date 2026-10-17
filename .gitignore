@@ -195,3 +195,6 @@ DevOps/k3s/secrets.env
 
 # Book content extracted for personal use only - never commit or ship in images
 /content/
+
+# Exam audio/video/pictures, served from MEDIA_DIR - never commit or bake into images
+/media/

@@ -54,6 +54,32 @@ There is one DutchPal `IngressRoute`. There is no second Traefik.
 | middlewares | `strip-dutchpal-agent-api`, `strip-dutchpal-core-api` |
 | secret | `dutchpal-secrets` |
 | configmap | `dutchpal-config` |
+| PVC | `postgres-data-dutchpal-postgres-0`, `dutchpal-media` |
+
+## Media volume
+
+Exam audio, video and pictures (see "Exams with media" in [06-content-extraction.md](06-content-extraction.md))
+are not in any image. They live on the PVC `dutchpal-media` (`local-path`, 2Gi, `helm.sh/resource-policy: keep`),
+mounted read-only at `/media` in the agent API with `MEDIA_DIR=/media`, and are served at
+`https://dutchpal.lontray.art/dutchpal-api/media/<path>` (Range requests work, so players can seek).
+Values: `media.enabled`, `media.storageClass`, `media.storage`, `media.mountPath`.
+
+The agent API mounts the volume read-only, so copy files in through a short-lived pod that mounts it writable
+(run from a machine with kubectl access to the cluster, in the main checkout that has `media/`):
+
+```bash
+kubectl -n dutchpal run media-upload --image=busybox:1.36 --restart=Never --overrides='{"spec":{"containers":[{"name":"media-upload","image":"busybox:1.36","command":["sleep","3600"],"volumeMounts":[{"name":"media","mountPath":"/media"}]}],"volumes":[{"name":"media","persistentVolumeClaim":{"claimName":"dutchpal-media"}}]}}'
+kubectl -n dutchpal wait --for=condition=Ready pod/media-upload --timeout=120s
+kubectl -n dutchpal cp media/staatsexamen-b1 media-upload:/media/staatsexamen-b1
+kubectl -n dutchpal exec media-upload -- du -sh /media/staatsexamen-b1
+kubectl -n dutchpal delete pod media-upload
+```
+
+`kubectl cp` into an existing folder nests it, so delete the old folder in the pod first when re-uploading
+(`kubectl -n dutchpal exec media-upload -- rm -rf /media/staatsexamen-b1`). The PVC is bound on first use
+(`WaitForFirstConsumer`), so deploy the chart first. Check one file:
+`curl -fsI "https://dutchpal.lontray.art/dutchpal-api/media/staatsexamen-b1/2024-luisteren/Track%203%20opgave%201.mp3"`.
+The chapters that use these files are imported like any other book (`tools/content/import.py`).
 
 ## Database
 
