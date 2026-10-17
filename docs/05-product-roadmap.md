@@ -49,7 +49,7 @@ Method and schema: [06-content-extraction.md](06-content-extraction.md).
 | --- | --- | ---: | --- |
 | NL in Gang | `repo-for-books/NL in Gang/NL in Gang.pdf` | 271 | done: ch01–ch16 (pdf 1–193, book 17–209); ch17+ skipped by owner decision (2026-10-16) |
 | Delftse A1/A2 | `repo-for-books/Delftse a1-a2/*.png` | 42 images | done: Les 1–42 → `content/delftse-a1-a2/ch01–ch42.json` (lesson texts only; several screenshots are cut off, noted per lesson) |
-| Short stories in Dutch | `reading-books/short stories in dutch (first 4 story).pdf` (same as the 4 split PDFs) | 83 | todo |
+| Short stories in Dutch | `reading-books/short stories in dutch (first 4 story).pdf` (same as the 4 split PDFs) | 83 | done: 5 stories, 16 chapters → `content/short-stories-dutch/ch01–ch16.json` (story text + bold glossary words; glossary/quiz pages were not photographed) |
 | Er waren eens twee duifjes | `repo-for-books/aalberse_theo_er_waren_eens_twee_duifjes.pdf` | 16 | todo |
 | Grammar in Use (partial) | `repo-for-books/partial-grammar-in-use.pdf` | 18 | todo |
 | Teach Yourself (partial) | `repo-for-books/teach_yourself/…pdf` | 7 | todo |
@@ -58,7 +58,7 @@ Method and schema: [06-content-extraction.md](06-content-extraction.md).
 
 - [ ] Extract every book chapter into `content/<book>/chXX.json`, validated with `tools/content/validate.py`.
 - [ ] Owner reviews generated answer keys (`answers_source: generated_needs_review`).
-- [x] New DB tables (`chapters`, `dialogues`, `vocab_entries`, `grammar_topics`, `exercises`) + importer script (`tools/content/import.py`). Old tables stay until the UI is switched. Local DB loaded with NL in Gang ch01–ch16 and Delftse Les 1–42 (58 chapters, 2026-10-17).
+- [x] New DB tables (`chapters`, `dialogues`, `vocab_entries`, `grammar_topics`, `exercises`) + importer script (`tools/content/import.py`). Old tables stay until the UI is switched. Local DB loaded with NL in Gang ch01–ch16, Delftse Les 1–42 and Short Stories ch01–ch16 (74 chapters, 2026-10-17).
 - [ ] Fix book metadata: drop duplicate short stories, correct CEFR labels.
 
 ### 1.2 Render stored data directly (no LLM)
