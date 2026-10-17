@@ -32,6 +32,7 @@ ADDED_COLUMNS = [
     "ALTER TABLE chapters ADD COLUMN IF NOT EXISTS source_images JSONB NOT NULL DEFAULT '[]'",
     "ALTER TABLE chapters ADD COLUMN IF NOT EXISTS note TEXT",
     "ALTER TABLE dialogues ADD COLUMN IF NOT EXISTS new_words JSONB NOT NULL DEFAULT '[]'",
+    "ALTER TABLE vocab_entries ADD COLUMN IF NOT EXISTS generated BOOLEAN",
 ]
 EXERCISE_FIELDS = {"id", "label", "book_page", "type", "instruction", "answers_source"}
 
@@ -109,6 +110,7 @@ def import_chapter(conn, data: dict) -> int:
             "article": item.get("article"),
             "form": item.get("form"),
             "en": item["en"],
+            "generated": vlist.get("generated"),
         }
         for li, vlist in enumerate(data.get("vocabulary", []))
         for ii, item in enumerate(vlist["items"])

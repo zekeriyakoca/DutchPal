@@ -69,6 +69,12 @@ def validate(path: Path) -> tuple[list[str], list[str], dict]:
 
     words = []
     for vlist in data.get("vocabulary", []):
+        if "generated" in vlist and not isinstance(vlist["generated"], bool):
+            errors.append(f"vocab list '{vlist.get('list')}': generated must be true or false")
+        if ch.get("authored") and vlist.get("generated") is not True:
+            errors.append(f"vocab list '{vlist.get('list')}': authored chapter needs generated: true")
+        if vlist.get("generated") and vlist.get("book_page"):
+            errors.append(f"vocab list '{vlist.get('list')}': generated list cannot have a book_page")
         for item in vlist["items"]:
             words.append(item["nl"])
             if not item.get("en"):
@@ -117,6 +123,7 @@ def validate(path: Path) -> tuple[list[str], list[str], dict]:
         "dialogue_lines": sum(len(d["lines"]) for d in data.get("dialogues", [])),
         "new_words": sum(len(d.get("new_words", [])) for d in data.get("dialogues", [])),
         "vocab_items": len(words),
+        "generated_vocab": sum(len(v["items"]) for v in data.get("vocabulary", []) if v.get("generated")),
         "unique_lemmas": len({i["lemma"].lower() for v in data.get("vocabulary", []) for i in v["items"]}),
         "grammar_topics": len(data.get("grammar", [])),
         "exercises": len(data.get("exercises", [])),

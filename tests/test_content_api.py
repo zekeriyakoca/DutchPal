@@ -60,7 +60,7 @@ def seed(db):
             ),
         ],
         vocab_entries=[
-            VocabEntry(list_position=1, item_position=0, list_name="Lijst 2", book_page=11, nl="lopen", lemma="lopen", en="to walk"),
+            VocabEntry(list_position=1, item_position=0, list_name="Lijst 2", book_page=11, nl="lopen", lemma="lopen", en="to walk", generated=True),
             VocabEntry(list_position=0, item_position=1, list_name="Lijst 1", book_page=10, nl="het huis", lemma="huis", article="het", en="house"),
             VocabEntry(list_position=0, item_position=0, list_name="Lijst 1", book_page=10, nl="de kat", lemma="kat", article="de", en="cat"),
         ],
@@ -187,6 +187,7 @@ def test_chapter(client):
         {
             "list": "Lijst 1",
             "book_page": 10,
+            "generated": False,
             "items": [
                 {"nl": "de kat", "lemma": "kat", "article": "de", "form": None, "en": "cat"},
                 {"nl": "het huis", "lemma": "huis", "article": "het", "form": None, "en": "house"},
@@ -195,6 +196,7 @@ def test_chapter(client):
         {
             "list": "Lijst 2",
             "book_page": 11,
+            "generated": True,
             "items": [{"nl": "lopen", "lemma": "lopen", "article": None, "form": None, "en": "to walk"}],
         },
     ]
