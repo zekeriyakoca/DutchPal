@@ -121,8 +121,9 @@ curl -fsS -X POST https://dutchpal.lontray.art/dutchpal-api/chat \
 | `POST /dutchpal-api/quiz` | Quiz UI | OpenAI `gpt-5-mini` agent | DB load for paragraph quiz | not normalized |
 | `POST /dutchpal-api/vocabulary` | Vocabulary UI | OpenAI `text-embedding-ada-002` if `message` exists | Groq `gpt-oss-20b` -> fallback `gpt-5-nano` formats Markdown | OpenAI failure -> `503` |
 | `POST /dutchpal-api/sentences` | Sentence UI | DB query | Groq `gpt-oss-20b` -> fallback `gpt-5-nano` only for missing translations | OpenAI failure -> `503` |
-| `POST /dutchpal-api/translate` | Translation UI | Groq `gpt-oss-20b` -> fallback `gpt-5-nano` | none | OpenAI failure -> `503` |
-| `POST /dutchpal-api/translate-word` | Word translation UI | Groq `gpt-oss-20b` -> fallback `gpt-5-nano` | `response_quality=2`: `gpt-5-mini` (low); `response_quality=3`: `gpt-5-nano` | OpenAI failure -> `503` |
+| `POST /dutchpal-api/translate` | Translation UI | Groq `gpt-oss-20b` -> fallback `gpt-5-nano` | one retry on unreadable JSON | OpenAI failure -> `503`; unreadable JSON -> `502` |
+| `POST /dutchpal-api/word/lookup` | Translation UI (word) | DB: `vocab_entries`, `vocabulary` | Groq `gpt-oss-20b` -> fallback `gpt-5-nano` fills missing fields (JSON, one retry) | stored data returned without examples; nothing stored -> `503` / `502` |
+| `POST /dutchpal-api/translate-word` | Selection/options UI | same as `/word/lookup`, rendered as a Markdown table | same as `/word/lookup` | same as `/word/lookup` |
 | `POST /dutchpal-api/translate-word-as-json` | Selection/options UI | OpenAI `gpt-5-mini` | none | OpenAI failure -> `503` |
 | `POST /dutchpal-api/explain` | Selection/options UI | OpenAI `gpt-5-mini` | none | OpenAI failure -> `503` |
 | `POST /dutchpal-api/explain-grammar` | Grammar UI | OpenAI `gpt-5-mini` (low) | none | OpenAI failure -> `503` |
@@ -131,7 +132,7 @@ curl -fsS -X POST https://dutchpal.lontray.art/dutchpal-api/chat \
 
 ## AI providers
 
-Groq `llama-*` models became enterprise-only (`404 model_not_found`) and were replaced on 2026-09-28. Simple tasks (`chat_fast`: translate, vocabulary formatting, sentence translations, translate-word quality 1) use Groq `openai/gpt-oss-20b` on the free tier (30 RPM, 1K RPD, 8K TPM) and fall back to OpenAI `gpt-5-nano` on any Groq failure. Everything else uses OpenAI. Fallbacks are logged as `Groq failed, falling back to gpt-5-nano`.
+Groq `llama-*` models became enterprise-only (`404 model_not_found`) and were replaced on 2026-09-28. Simple tasks (`chat_fast`: translate, word lookup, vocabulary formatting, sentence translations) use Groq `openai/gpt-oss-20b` on the free tier (30 RPM, 1K RPD, 8K TPM) and fall back to OpenAI `gpt-5-nano` on any Groq failure. Everything else uses OpenAI. Fallbacks are logged as `Groq failed, falling back to gpt-5-nano`.
 
 ## OpenAI state
 
