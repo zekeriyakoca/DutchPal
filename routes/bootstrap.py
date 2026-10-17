@@ -1,18 +1,9 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from tools.agent import SessionLocal
 from tools.embed import Book
+from utils.db import get_db
 
 router = APIRouter()
-
-
-# Dependency to get the database session
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 @router.get("/bootstrap")

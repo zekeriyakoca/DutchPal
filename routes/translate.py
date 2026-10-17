@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from httpx import AsyncClient
 from services.app_service import translate
-from tools.agent import language_agent, SessionLocal, Deps
+from tools.agent import language_agent, Deps
 from pydantic import BaseModel
 from utils.provider_errors import raise_openai_unavailable_if_provider_error
 
