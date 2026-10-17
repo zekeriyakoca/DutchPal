@@ -13,10 +13,12 @@ import numpy as np
 from httpx import AsyncClient
 from sqlalchemy import create_engine, text as sql_text
 from sqlalchemy.orm import sessionmaker
+from pydantic import BaseModel, Field
 from pydantic_ai import RunContext
 from dotenv import load_dotenv
 from tools.chat_with_ai import chat_fast, chat_with_openai_5_mini
 from utils.cerf_helper import map_to_joint_levels
+from utils.llm_json import ask_llm_json
 
 env_file = ".env.production" if os.getenv("ENV") == "production" else ".env"
 load_dotenv(env_file)
@@ -46,6 +48,11 @@ def create_embedding(text: str) -> list[float]:
     )
 
 
+class SentenceTranslation(BaseModel):
+    translation: str = Field(min_length=1)
+    text: str
+
+
 async def translate(sentence: str) -> str:
     """
     Translates a Dutch sentence into English using the GROK model.
@@ -70,12 +77,9 @@ async def translate(sentence: str) -> str:
         No extra text or explanation needed buy only the json.
     """
 
-    response = await asyncio.to_thread(chat_fast, prompt)
-    json_response = json.loads(response.strip())
-    if "translation" not in json_response or "text" not in json_response:
-        return "Invalid response format from translation service."
+    result = await ask_llm_json(chat_fast, prompt, SentenceTranslation)
 
-    mdText = f"**Translation:** {json_response['translation']}\n\n**Original Text:** {json_response['text']}"
+    mdText = f"**Translation:** {result.translation}\n\n**Original Text:** {result.text}"
     return mdText
 
 

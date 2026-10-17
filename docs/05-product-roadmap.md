@@ -76,7 +76,8 @@ Method and schema: [06-content-extraction.md](06-content-extraction.md).
   - [ ] Validate answers and distractors against stored vocabulary and the selected level.
 
 ### 1.4 UX basics
-- [ ] Enter submits in Chat; loading state per panel; readable error per panel (not only the 3 s toast).
+- [x] Chat: Enter sends, Shift+Enter adds a newline, no double submit, loading state, inline error with the backend `detail`. The conversation stays on the page for the session and is sent as `history` to `/chat` (not stored).
+- [ ] Loading state and readable inline error on the other panels (Translation done; Study Book, Practice and Vocab Game are being rewritten).
 
 ### 1.5 Safety net
 - [x] Smoke/e2e tests for the core loop (open chapter, look up word, play exercise, generate quiz).
@@ -86,14 +87,16 @@ Method and schema: [06-content-extraction.md](06-content-extraction.md).
 ## Phase 2 — stable features
 - [ ] One AI client layer + per-endpoint config (provider, model, prompt version, timeout, fallback).
 - [ ] Prompts in versioned files; eval sets for translate-word JSON, explain, quiz.
-- [ ] Merge endpoints: `/word/lookup`, `/text/explain`; delete `/ask` and the .NET placeholder `POST /vocabulary`.
+- [x] `POST /word/lookup`: book word lists (`vocab_entries`) first, then the `vocabulary` table (CEFR, part of speech, verb forms); the LLM (strict JSON, validated) only fills empty fields, mainly examples, and never overwrites stored values. `source` says where the entry was found (`book` / `db` / `llm`). If the LLM fails, stored data is returned without examples. The Translation page renders it; `/translate-word` (selection buttons) renders the same lookup as a Markdown table.
+- [x] `/translate`: JSON reply is unwrapped from code fences, validated, retried once, and a still-unreadable reply is a 502 with a readable `detail`.
+- [ ] Merge endpoints: `/text/explain`; delete `/ask` and the .NET placeholder `POST /vocabulary`.
 - [ ] Metrics in Grafana: latency, errors, tokens/cost per route.
 - [ ] Update `04-ai-engineering-review.md` model map (still lists llama / gpt-3.5).
 
 ## Phase 3 — richer features
 - [ ] Section study: ask questions about the open chapter, answer with citations to the book.
 - [ ] Progress tracking and spaced repetition (FSRS: `py-fsrs` / `ts-fsrs`).
-- [ ] Chat history; answer-quality feedback buttons.
+- [ ] Stored chat history (per-session history is done); answer-quality feedback buttons.
 - [ ] Audio: map book CD tracks (e.g. `1-1`, `1-2`) to dialogues; optional local TTS (Piper Dutch voices).
 - [ ] Open datasets to complement the books (later, not instead of them): Wiktionary/Kaikki (forms, IPA), NT2Lex (CEFR levels), Tatoeba (example sentences + audio).
 - [ ] Notion save, once auth exists.
