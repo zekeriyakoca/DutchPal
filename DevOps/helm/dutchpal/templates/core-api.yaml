@@ -46,8 +46,6 @@ spec:
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: {{ .Values.otel.endpoint | quote }}
             {{- end }}
-            - name: ConnectionStrings__DefaultConnection
-              value: "Host=dutchpal-postgres;Port={{ .Values.postgres.port }};Database=$(POSTGRES_DB);Username=$(POSTGRES_USER);Password=$(POSTGRES_PASSWORD)"
             - name: Notion__Secret
               valueFrom:
                 secretKeyRef:

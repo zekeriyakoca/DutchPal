@@ -14,7 +14,6 @@ from fastapi.testclient import TestClient
 import main
 import utils.db
 from routes import (
-    ask,
     chat,
     grammar,
     quiz,
@@ -50,10 +49,9 @@ async def _fake_lookup(db, text):
 def client(monkeypatch):
     main.app.dependency_overrides[get_db] = lambda: MagicMock()
 
-    # ask, chat and quiz share the same agent instance
-    monkeypatch.setattr(ask.language_agent, "run", _fake_agent_run)
+    # chat and quiz share the same agent instance
+    monkeypatch.setattr(chat.language_agent, "run", _fake_agent_run)
     monkeypatch.setattr(vocabulary, "get_vocabularies", _fake_list)
-    monkeypatch.setattr(grammar, "explain_grammar", _fake_async)
     monkeypatch.setattr(grammar, "explain", _fake_async)
     monkeypatch.setattr(translate, "translate", _fake_async)
     monkeypatch.setattr(translate_word, "lookup_word", _fake_lookup)
@@ -77,10 +75,8 @@ def test_health(client):
     [
         ("get", "/bootstrap", None),
         ("post", "/chat", {"message": "hallo"}),
-        ("post", "/ask", {"message": "hallo", "page": "grammar"}),
         ("post", "/vocabulary", {}),
         ("post", "/quiz", {"quiz_type": "grammar"}),
-        ("post", "/explain-grammar", {"message": "Ik woon hier."}),
         ("post", "/explain", {"message": "Ik woon hier."}),
         ("post", "/translate", {"message": "Ik woon hier."}),
         ("post", "/translate-word", {"message": "wonen"}),
@@ -121,7 +117,7 @@ def test_chat_sends_history_after_system_prompt(client, monkeypatch):
         seen["history"] = message_history
         return SimpleNamespace(output="agent reply")
 
-    monkeypatch.setattr(ask.language_agent, "run", fake_run)
+    monkeypatch.setattr(chat.language_agent, "run", fake_run)
     history = [{"role": "user", "content": "Hoi"}, {"role": "assistant", "content": "Hallo!"}]
     assert client.post("/chat", json={"message": "En nu?", "history": history}).status_code == 200
     kinds = [(type(part).__name__, part.content) for message in seen["history"] for part in message.parts]

@@ -226,26 +226,6 @@ async def get_vocabularies(
 
 
 
-async def explain_grammar(client: AsyncClient, sentence: str) -> str:
-    """Explain the grammar rules in the given Dutch sentence."""
-    prompt = f"Explain the Dutch grammar in this sentence:\n{sentence}"
-
-    response = await client.post(
-        "https://api.openai.com/v1/chat/completions",
-        headers={
-            "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": "gpt-5-mini",
-            "reasoning_effort": "low",
-            "messages": [{"role": "user", "content": prompt}],
-        },
-    )
-    response.raise_for_status()
-    return response.json()["choices"][0]["message"]["content"].strip()
-
-
 async def explain(sentence: str) -> str:
     """Explain the given Dutch sentence"""
 

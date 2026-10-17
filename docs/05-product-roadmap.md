@@ -89,7 +89,7 @@ Method and schema: [06-content-extraction.md](06-content-extraction.md).
 - [ ] Prompts in versioned files; eval sets for translate-word JSON, explain, quiz.
 - [x] `POST /word/lookup`: book word lists (`vocab_entries`) first, then the `vocabulary` table (CEFR, part of speech, verb forms); the LLM (strict JSON, validated) only fills empty fields, mainly examples, and never overwrites stored values. `source` says where the entry was found (`book` / `db` / `llm`). If the LLM fails, stored data is returned without examples. The Translation page renders it; `/translate-word` (selection buttons) renders the same lookup as a Markdown table.
 - [x] `/translate`: JSON reply is unwrapped from code fences, validated, retried once, and a still-unreadable reply is a 502 with a readable `detail`.
-- [ ] Merge endpoints: `/text/explain`; delete `/ask` and the .NET placeholder `POST /vocabulary`.
+- [x] Deleted `/ask` and `/explain-grammar` (unused by the UI; `/chat` and `/explain` cover them), the .NET placeholder `POST /vocabulary` and the .NET book/section endpoints (their tables were dropped). The .NET API now only serves the Notion save.
 - [ ] Metrics in Grafana: latency, errors, tokens/cost per route.
 - [ ] Update `04-ai-engineering-review.md` model map (still lists llama / gpt-3.5).
 

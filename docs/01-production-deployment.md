@@ -133,7 +133,6 @@ curl -fsS -X POST https://dutchpal.lontray.art/dutchpal-api/chat \
 | Endpoint | Used by | Main call | Extra AI calls | Failure behavior |
 | --- | --- | --- | --- | --- |
 | `POST /dutchpal-api/chat` | Chat UI | OpenAI `gpt-5-mini` agent (reasoning `low`) | tools can call OpenAI embeddings or OpenAI `gpt-5-mini` | OpenAI failure -> `503` |
-| `POST /dutchpal-api/ask` | older generic UI flow | OpenAI `gpt-5-mini` agent | same tools as `/chat` | not normalized |
 | `POST /dutchpal-api/quiz` | Quiz UI | OpenAI `gpt-5-mini` agent, structured JSON output, validated (one retry) | none | OpenAI failure -> `503` |
 | `POST /dutchpal-api/vocabulary` | Vocabulary UI | DB query (`vocabulary`, examples from `dialogues`/`exercises`), JSON rows; OpenAI `text-embedding-ada-002` if `message` exists | none | OpenAI failure -> `503` |
 | `POST /dutchpal-api/translate` | Translation UI | Groq `gpt-oss-20b` -> fallback `gpt-5-nano` | one retry on unreadable JSON | OpenAI failure -> `503`; unreadable JSON -> `502` |
@@ -141,9 +140,8 @@ curl -fsS -X POST https://dutchpal.lontray.art/dutchpal-api/chat \
 | `POST /dutchpal-api/translate-word` | Selection/options UI | same as `/word/lookup`, rendered as a Markdown table | same as `/word/lookup` | same as `/word/lookup` |
 | `POST /dutchpal-api/translate-word-as-json` | Selection/options UI | OpenAI `gpt-5-mini` | none | OpenAI failure -> `503` |
 | `POST /dutchpal-api/explain` | Selection/options UI | OpenAI `gpt-5-mini` | none | OpenAI failure -> `503` |
-| `POST /dutchpal-api/explain-grammar` | Grammar UI | OpenAI `gpt-5-mini` (low) | none | OpenAI failure -> `503` |
 | `GET /dutchpal-api/bootstrap` | App startup | DB query (`chapters`: book options) | none | no AI |
-| `/dutchpal-v2-api/*` | Study book UI | .NET + DB | none by default | no AI |
+| `POST /dutchpal-v2-api/vocabulary/{noun,verb}/upsert-to-notion` | Selection/options UI (Notion save) | .NET → Notion API | none | Notion error -> 500 |
 
 ## AI providers
 
