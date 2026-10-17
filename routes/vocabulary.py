@@ -16,7 +16,7 @@ class VocabRequest(BaseModel):
     message: str = ""
     level: str = "ALL LEVELS"
     number_of_entries: int = 1
-    book_id: Optional[int] = None
+    book_id: Optional[str] = None  # content book slug; narrows the examples
     word_type: Optional[str] = None
 
 
@@ -49,11 +49,11 @@ async def get_vocabulary(req: VocabRequest, db: Session = Depends(get_db)):
                 "present_form": vocab["present_form"],
                 "v2_form": vocab["v2_form"],
                 "v3_form": vocab["v3_form"],
-                "examples": await find_sentence_containing_word(
+                "examples": find_sentence_containing_word(
                     db=db,
                     word_forms=get_all_forms_of_word(vocab),
                     limit=2,
-                    cefr_level=req.level,
+                    book_id=req.book_id,
                 ),
             }
             for vocab in vocabularies
