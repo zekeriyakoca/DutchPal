@@ -1,6 +1,6 @@
 # DutchPal production deployment
 
-> Last updated: 2026-09-28  
+> Last updated: 2026-10-17  
 > Source of truth: `DutchPal` repo  
 > Target: Oracle VM k3s  
 > Public URL: `https://dutchpal.lontray.art`
@@ -28,7 +28,7 @@ There is one DutchPal `IngressRoute`. There is no second Traefik.
 | Repo | Role | Production source |
 | --- | --- | --- |
 | `DutchPal` | FastAPI agent API and deploy orchestration | yes |
-| `DutchPal-API` | .NET API for books, sections, Notion writes | built by `DutchPal/DevOps/generate-images.sh` |
+| `DutchPal-API` | .NET API, only Notion writes (no longer called by the UI; retire it) | built by `DutchPal/DevOps/generate-images.sh` |
 | `DutchPal-UI` | Angular UI | built by `DutchPal/DevOps/generate-images.sh` |
 
 ## Images
@@ -93,6 +93,47 @@ COMMIT;
 
 `tools/embed.py` still defines these models for the old offline pipeline; do not run it afterwards.
 
+### Users and settings tables
+
+`users` and `user_settings` ([services/users.py](../services/users.py)) are created by the agent
+API on startup with `create_all`, which only creates missing tables and never alters or drops
+anything, so it is safe on the existing database. Nothing to run by hand. A later column change
+needs an `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` next to that `create_all` in `main.py`.
+
+## Secrets and config
+
+All values live in `DevOps/k3s/secrets.env` (git-ignored, copy from `secrets.env.example`);
+`deploy-to-vm.sh` puts them into `secret/dutchpal-secrets`, which the agent API reads entirely
+(`envFrom`). Local development reads the same names from `.env`.
+
+| Variable | Required | Used for |
+| --- | --- | --- |
+| `NOTION_SECRET` | yes | default (shared) Notion integration secret |
+| `NOTION_NOUN_DB_ID`, `NOTION_VERB_DB_ID` | yes | default Notion databases (the ids the .NET API had as `Notion:NounDbId` / `Notion:VerbDbId`) |
+| `GOOGLE_CLIENT_ID` | for sign-in | audience checked on Google ID tokens |
+| `SESSION_SECRET` | for sign-in | signs the session cookie; changing it signs everyone out |
+| `SETTINGS_ENCRYPTION_KEY` | for own Notion | Fernet key that encrypts users' Notion secrets; losing it makes saved secrets unreadable |
+
+Without the three sign-in values the app works as before: no one can sign in and every Notion
+save goes to the default Notion.
+
+### Google sign-in
+
+1. Google Cloud console → APIs & Services → OAuth consent screen: app name DutchPal, user type
+   External, scopes `openid`, `email`, `profile`; publish it.
+2. Credentials → Create credentials → OAuth client ID → type **Web application**.
+   Authorised JavaScript origins: `https://dutchpal.lontray.art` and `http://localhost:4200`.
+   No redirect URIs are needed.
+3. Copy the client ID (`….apps.googleusercontent.com`). It is public:
+   - backend: `GOOGLE_CLIENT_ID` in `secrets.env` / `.env`;
+   - UI: `googleClientId` in `DutchPal-UI/src/environments/environment.ts` and
+     `environment.production.ts`. An empty value hides the sign-in button.
+4. Generate `SESSION_SECRET` and `SETTINGS_ENCRYPTION_KEY` with the commands in
+   `secrets.env.example`, then redeploy.
+
+The session is an httpOnly, Secure, SameSite=Lax cookie set by `/dutchpal-api/auth/google`. The
+UI and API share the origin in production, so no token is stored in the browser.
+
 ## Deploy commands
 
 Build and push:
@@ -141,7 +182,9 @@ curl -fsS -X POST https://dutchpal.lontray.art/dutchpal-api/chat \
 | `POST /dutchpal-api/translate-word-as-json` | Selection/options UI | OpenAI `gpt-5-mini` | none | OpenAI failure -> `503` |
 | `POST /dutchpal-api/explain` | Selection/options UI | OpenAI `gpt-5-mini` | none | OpenAI failure -> `503` |
 | `GET /dutchpal-api/bootstrap` | App startup | DB query (`chapters`: book options) | none | no AI |
-| `POST /dutchpal-v2-api/vocabulary/{noun,verb}/upsert-to-notion` | Selection/options UI (Notion save) | .NET → Notion API | none | Notion error -> 500 |
+| `POST /dutchpal-api/notion/{noun,verb}` | Selection/options UI (Notion save) | Notion API: the user's own Notion from Settings, else the default | none | Notion error -> `502`; not configured -> `503` |
+| `POST /dutchpal-api/auth/google`, `GET /auth/me`, `POST /auth/logout` | Header sign-in | Google ID token check | none | bad token -> `401`; not configured -> `503` |
+| `GET /dutchpal-api/settings`, `PUT`/`DELETE /settings/notion`, `POST /settings/notion/test` | Settings page | DB; test calls Notion | none | signed out -> `401` |
 
 ## AI providers
 
@@ -170,7 +213,7 @@ bash DevOps/k3s/deploy-to-vm.sh --image-tag current
 | Priority | Gap | Required fix |
 | --- | --- | --- |
 | P0 | OpenAI quota broken | fix billing/key and redeploy secret |
-| P0 | Notion write endpoints have no auth | add auth before public use |
+| P1 | anonymous users can still write to the default Notion (owner's choice) | require sign-in for the default Notion if it gets abused |
 | P0 | images use mutable `current` tag | move to git SHA tags |
 | P1 | DB restore is manual | add repeatable restore/seed job |
 | P1 | provider errors not normalized everywhere | use one AI provider wrapper |

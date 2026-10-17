@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -11,10 +13,23 @@ from routes import (
     translate_word,
     content,
     word,
+    auth,
+    settings,
+    notion,
 )
+from services import users
+from tools.agent import engine
 from utils.llm_json import LlmJsonError
 
-app = FastAPI(root_path="/dutchpal-api")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Creates `users` and `user_settings` when missing; existing tables are left as they are.
+    users.Base.metadata.create_all(engine)
+    yield
+
+
+app = FastAPI(root_path="/dutchpal-api", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -52,3 +67,6 @@ app.include_router(translate.router)
 app.include_router(translate_word.router)
 app.include_router(content.router)
 app.include_router(word.router)
+app.include_router(auth.router)
+app.include_router(settings.router)
+app.include_router(notion.router)
