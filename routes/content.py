@@ -9,19 +9,10 @@ from itertools import groupby
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import exists, func
 from sqlalchemy.orm import Session
-from tools.agent import SessionLocal
 from tools.content.models import Chapter, Exercise
+from utils.db import get_db
 
 router = APIRouter()
-
-
-# Dependency to get the database session
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 @router.get("/content/books", tags=["Content"])
