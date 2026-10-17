@@ -63,6 +63,8 @@ Method and schema: [06-content-extraction.md](06-content-extraction.md).
 
 ### 1.2 Render stored data directly (no LLM)
 - [ ] `/vocabulary` and `/sentences` return JSON; the UI renders tables. Removes LLM formatting errors, ~0.5 s, free.
+  - [x] `/vocabulary` returns `{items: [{word, lemma, pos, cefr_level, present_form, v2_form, v3_form, examples}]}` from the same SQL selection, no LLM. Vocab Game renders a table and a flashcard mode. The `vocabulary` table has no translations, so none are shown (the LLM used to invent them).
+  - [ ] `/sentences` (still a markdown table built in Python).
 - [ ] Study Book reads the new chapter structure: goals, dialogue with speakers, word list, grammar, exercises.
   - [x] API: read-only `/content/...` endpoints serve the content tables ([Content API](06-content-extraction.md#content-api)).
   - [ ] UI: chapter view on top of it (DutchPal-UI).
@@ -70,6 +72,8 @@ Method and schema: [06-content-extraction.md](06-content-extraction.md).
 ### 1.3 Interactive practice
 - [ ] Book exercises of type `fill_gap` / `choose_option` playable in the UI with feedback and score.
 - [ ] Generated quiz: strict JSON schema, answer and distractors validated against stored vocabulary and the selected level before showing.
+  - [x] `/quiz` asks the agent for structured output `{questions: [{type, question, options, answer, explanation}]}`; questions with an empty text, empty or duplicate options, or an answer that is not an option are dropped, with one retry for the missing ones. Practice is interactive multiple choice with score. `PARAGRAPH` (stored open questions, no options) is still markdown.
+  - [ ] Validate answers and distractors against stored vocabulary and the selected level.
 
 ### 1.4 UX basics
 - [ ] Enter submits in Chat; loading state per panel; readable error per panel (not only the 3 s toast).

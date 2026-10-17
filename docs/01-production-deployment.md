@@ -118,8 +118,8 @@ curl -fsS -X POST https://dutchpal.lontray.art/dutchpal-api/chat \
 | --- | --- | --- | --- | --- |
 | `POST /dutchpal-api/chat` | Chat UI | OpenAI `gpt-5-mini` agent (reasoning `low`) | tools can call OpenAI embeddings or OpenAI `gpt-5-mini` | OpenAI failure -> `503` |
 | `POST /dutchpal-api/ask` | older generic UI flow | OpenAI `gpt-5-mini` agent | same tools as `/chat` | not normalized |
-| `POST /dutchpal-api/quiz` | Quiz UI | OpenAI `gpt-5-mini` agent | DB load for paragraph quiz | not normalized |
-| `POST /dutchpal-api/vocabulary` | Vocabulary UI | OpenAI `text-embedding-ada-002` if `message` exists | Groq `gpt-oss-20b` -> fallback `gpt-5-nano` formats Markdown | OpenAI failure -> `503` |
+| `POST /dutchpal-api/quiz` | Quiz UI | OpenAI `gpt-5-mini` agent, structured JSON output, validated (one retry) | none; `PARAGRAPH` is a DB load (markdown) | OpenAI failure -> `503` |
+| `POST /dutchpal-api/vocabulary` | Vocabulary UI | DB query, JSON rows; OpenAI `text-embedding-ada-002` if `message` exists | none | OpenAI failure -> `503` |
 | `POST /dutchpal-api/sentences` | Sentence UI | DB query | Groq `gpt-oss-20b` -> fallback `gpt-5-nano` only for missing translations | OpenAI failure -> `503` |
 | `POST /dutchpal-api/translate` | Translation UI | Groq `gpt-oss-20b` -> fallback `gpt-5-nano` | none | OpenAI failure -> `503` |
 | `POST /dutchpal-api/translate-word` | Word translation UI | Groq `gpt-oss-20b` -> fallback `gpt-5-nano` | `response_quality=2`: `gpt-5-mini` (low); `response_quality=3`: `gpt-5-nano` | OpenAI failure -> `503` |

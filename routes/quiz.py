@@ -20,9 +20,22 @@ class QuizRequest(BaseModel):
     quiz_type: Optional[str] = None  # e.g., "grammar", "vocab", etc.
 
 
+class QuizQuestion(BaseModel):
+    type: str
+    question: str
+    options: list[str]
+    answer: str
+    explanation: Optional[str] = None
+
+
+class Quiz(BaseModel):
+    questions: list[QuizQuestion]
+
+
 @router.post("/quiz")
 async def generate_quiz(req: QuizRequest, db: Session = Depends(get_db)):
     if req.quiz_type == "PARAGRAPH":
+        # Stored open questions with free-text answers (no options), so they stay markdown.
         questionGroups = get_paragraph_questions(
             db,
             limit=req.number_of_entries,
@@ -30,21 +43,58 @@ async def generate_quiz(req: QuizRequest, db: Session = Depends(get_db)):
         )
         return {"response": convert_question_groups_to_markdown(questionGroups)}
 
-    prompt = build_quiz_prompt(
-        level=req.level,
-        difficulty=req.difficulty,
-        number_of_entries=req.number_of_entries,
-        book_id=req.book_id,
-        quiz_type=req.quiz_type,
-    )
-
     async with AsyncClient(timeout=60) as client:
         deps = Deps(client=client, db=db)
         try:
-            result = await language_agent.run(prompt, deps=deps)
+            questions = await generate_questions(req, deps)
         except Exception as exc:
             raise_openai_unavailable_if_provider_error(exc)
-        return {"response": agent_output(result)}
+        return {"questions": [q.model_dump() for q in questions]}
+
+
+async def generate_questions(req: QuizRequest, deps: Deps) -> list[QuizQuestion]:
+    """Asks the agent for questions; retries once for the ones validation dropped."""
+    questions: list[QuizQuestion] = []
+    for _ in range(2):
+        missing = req.number_of_entries - len(questions)
+        if missing <= 0:
+            break
+        prompt = build_quiz_prompt(
+            level=req.level,
+            difficulty=req.difficulty,
+            number_of_entries=missing,
+            book_id=req.book_id,
+            quiz_type=req.quiz_type,
+        )
+        result = await language_agent.run(prompt, deps=deps, output_type=Quiz)
+        questions += valid_questions(agent_output(result).questions)
+    return questions[: req.number_of_entries]
+
+
+def valid_questions(questions: list[QuizQuestion]) -> list[QuizQuestion]:
+    """
+    Keeps only questions the UI can grade: non-empty question, at least two
+    non-empty unique options, and an answer that is exactly one of the options.
+    Values are returned stripped.
+    """
+    valid = []
+    for q in questions:
+        question = q.question.strip()
+        options = [o.strip() for o in q.options]
+        answer = q.answer.strip()
+        if (
+            question
+            and len(options) >= 2
+            and all(options)
+            and len({o.casefold() for o in options}) == len(options)
+            and answer in options
+        ):
+            valid.append(
+                q.model_copy(
+                    update={"question": question, "options": options, "answer": answer}
+                )
+            )
+    return valid
 
 
 def convert_question_groups_to_markdown(data: list) -> str:
@@ -98,21 +148,20 @@ def build_quiz_prompt(
     return f"""
     Generate a **Dutch {quiz_type} quiz**.
 
-    - CEFR Level: {level}  
-    - Difficulty: {difficulty} (0–10 scale)  
-    - Number of questions: {number_of_entries}  
+    - CEFR Level: {level}
+    - Difficulty: {difficulty} (0–10 scale)
+    - Number of questions: {number_of_entries}
     {book_selection_directive}
-    - Do **not** include meta data like question type. Just the question number, question, and answer options as in 1. Question, A) Option 1, B) Option 2, etc.
-    - Give the list of correct answers at the end of the quiz as in "Correct answers: 1. A, 2. B, 3. C, 4. D, 5. E" Make answers pale gray
+    Every question is multiple choice:
+    - `type`: one of fill_in_the_blank, sentence_completion, translation, vocabulary, grammar, reading
+    - `question`: the question text; mark a blank as ___
+    - `options`: 3 or 4 different options
+    - `answer`: the correct option, copied exactly from `options`; exactly one option is correct
+    - `explanation`: one short sentence on why the answer is correct
 
-    The quiz should be varied and engaging. Use multiple formats like:
-    - Multiple choice
-    - Fill in the blank
-    - Sentence completion
-    - Choose the correct translation
-    - Paragraph-based questions (3 relevant questions. paragraph length is based on the CEFR level and difficulty) if question quantity is more than 10
+    The quiz should be varied and engaging. Mix the question types.
+    If there are more than 10 questions, include reading questions: a short paragraph (length based on the CEFR level and difficulty) followed by the question, both in `question`.
 
     All questions should match the selected CEFR level and difficulty.
-
-    Return the quiz as a **Markdown-formatted content** — **do not** include any explanation or extra text.
+    Use plain text in every field, no Markdown.
     """

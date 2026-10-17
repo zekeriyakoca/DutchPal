@@ -246,39 +246,29 @@ async def find_sentence_containing_word(
     limit: int = 1,
     book_id: int = None,
     cefr_level: str = "ALL LEVELS",
-) -> str:
+) -> list[str]:
     """
     Finds sentences from embedded Dutch books containing a word.
     - `word`: Word to search for.
     - `limit`: Max results.
     - `book_id`: (Optional) Filter by book.
-    Returns a comma-separated list of sentences containing the word.
+    Returns the sentences containing the word; empty for invalid input.
     """
 
-    if limit < 1:
-        return "Limit must be at least 1."
-    if limit > 10:
-        return "Limit must be at most 10."
+    if limit < 1 or limit > 10:
+        return []
 
     word_forms = [w.strip() for w in word_forms if len(w.strip()) > 1]
 
-    if not word_forms:
-        return "Please provide a word to search for."
-    if len(word_forms[0]) < 2:
-        return "Word must be at least 2 characters long."
-    if len(word_forms[0]) > 20:
-        return "Word must be at most 20 characters long."
+    if not word_forms or len(word_forms[0]) > 20:
+        return []
 
     result = retrieve_sentences(db, word_forms, limit, book_id, cefr_level)
     if not result:
         result = retrieve_sentences(db, word_forms, limit, book_id, "ALL LEVELS")
 
     print(f"{len(result)} sentences found.")
-    if result:
-        sentences = [row.sentence for row in result]
-        return ", ".join(sentences)
-
-    return ""
+    return [row.sentence for row in result]
 
 
 def retrieve_sentences(db, word_forms, limit, book_id, cefr_level):

@@ -25,7 +25,9 @@ from routes import (
 from utils.db import get_db
 
 
-async def _fake_agent_run(prompt, deps=None):
+async def _fake_agent_run(prompt, deps=None, output_type=None):
+    if output_type is quiz.Quiz:
+        return SimpleNamespace(output=quiz.Quiz(questions=[]))
     return SimpleNamespace(output="agent reply")
 
 
@@ -85,7 +87,7 @@ def test_health(client):
 def test_routes_respond(client, method, path, body):
     response = client.request(method, path, json=body)
     assert response.status_code == 200, response.text
-    assert "response" in response.json() or "book_options" in response.json()
+    assert response.json().keys() & {"response", "book_options", "items", "questions"}
 
 
 def test_get_db_closes_session(monkeypatch):
