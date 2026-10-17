@@ -47,8 +47,14 @@ def validate(path: Path) -> tuple[list[str], list[str], dict]:
         missing = sorted(set(range(first, last + 1)) - book_pages_found(data))
         if missing:
             warnings.append(f"book pages without content: {missing}")
+    elif ch.get("authored"):
+        if not ch.get("note"):
+            errors.append("authored chapter has no note saying so")
+        for ex in data.get("exercises", []):
+            if ex.get("answers_source") != "generated_needs_review":
+                errors.append(f"{ex['id']}: authored exercise must have answers_source generated_needs_review")
     elif not ch.get("source_images"):
-        errors.append("chapter has neither book_pages nor source_images")
+        errors.append("chapter has neither book_pages, source_images nor authored")
     if not ch.get("goals") and ch.get("goals_printed", True):
         errors.append("chapter has no goals")
 
