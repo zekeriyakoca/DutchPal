@@ -50,11 +50,11 @@ Method and schema: [06-content-extraction.md](06-content-extraction.md).
 | NL in Gang | `repo-for-books/NL in Gang/NL in Gang.pdf` | 271 | done: ch01–ch16 (pdf 1–193, book 17–209); ch17+ skipped by owner decision (2026-10-16) |
 | Delftse A1/A2 | `repo-for-books/Delftse a1-a2/*.png` | 42 images | done: Les 1–42 → `content/delftse-a1-a2/ch01–ch42.json` (lesson texts only; several screenshots are cut off, noted per lesson) |
 | Short stories in Dutch | `reading-books/short stories in dutch (first 4 story).pdf` (same as the 4 split PDFs) | 83 | done: 5 stories, 16 chapters → `content/short-stories-dutch/ch01–ch16.json` (story text + bold glossary words; glossary/quiz pages were not photographed) |
-| Er waren eens twee duifjes | `repo-for-books/aalberse_theo_er_waren_eens_twee_duifjes.pdf` | 16 | todo |
-| Grammar in Use (partial) | `repo-for-books/partial-grammar-in-use.pdf` | 18 | todo |
-| Teach Yourself (partial) | `repo-for-books/teach_yourself/…pdf` | 7 | todo |
-| B1 Examen 2024 | `data/B1 Examen 2024.md` | text | todo (restructure only) |
-| appel b1 | **source missing** | — | ask owner |
+| Er waren eens twee duifjes | `repo-for-books/aalberse_theo_er_waren_eens_twee_duifjes.pdf` | 16 | done: 1 chapter → `content/twee-duifjes/ch01.json` (whole story, pdf 3–15, book 1–13; one sentence per line; no glossary or questions printed) |
+| Grammar in Use (partial) | `repo-for-books/partial-grammar-in-use.pdf` | 18 | skipped: replaced by the authored Dutch grammar course (`dutch-grammar-in-use`) |
+| Teach Yourself (partial) | `repo-for-books/teach_yourself/…pdf` | 7 | done: 2 chapters → `content/teach-yourself-dutch/ch01–ch02.json` (unit 1 without its cover page, book 2–10; unit 2 up to the 'How to' summary, book 11–15) |
+| B1 Examen 2024 | `data/B1 Examen 2024.md` | text | done: 6 reading texts → `content/b1-examen-2024/ch01–ch06.json` (questions 1–35 as `reading` exercises with the exam's own answer key) |
+| appel b1 | **source missing** | — | skipped: no source file |
 
 - [ ] Extract every book chapter into `content/<book>/chXX.json`, validated with `tools/content/validate.py`.
 - [ ] Owner reviews generated answer keys (`answers_source: generated_needs_review`).

@@ -53,8 +53,8 @@ def validate(path: Path) -> tuple[list[str], list[str], dict]:
         for ex in data.get("exercises", []):
             if ex.get("answers_source") != "generated_needs_review":
                 errors.append(f"{ex['id']}: authored exercise must have answers_source generated_needs_review")
-    elif not ch.get("source_images"):
-        errors.append("chapter has neither book_pages, source_images nor authored")
+    elif not ch.get("source_images") and not ch.get("source_files"):
+        errors.append("chapter has neither book_pages, source_images, source_files nor authored")
     if not ch.get("goals") and ch.get("goals_printed", True):
         errors.append("chapter has no goals")
 

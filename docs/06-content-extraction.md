@@ -99,6 +99,14 @@ Books without printed page numbers, goals or glossary (e.g. Delftse A1/A2, scree
 `{speaker: null, text, narration: true}` for narrative paragraphs; `dialogues[].new_words []` lists the words the book
 prints in italics (new in that lesson, no translation printed); `kijk_goed []` lists the green look-up references.
 
+Sources that are already text (e.g. `b1-examen-2024`, an exam typed out as Markdown in `data/`): `chapter` carries
+`source_files []` (repo-relative paths) instead of `book_pages` / `source_images`, and `goals_printed: false`. Answers taken
+from the source's own answer key are marked `"answers_source": "book_answer_key"`.
+
+Narration lines in stories and long reading texts hold one sentence each (at most one paragraph), never a whole page:
+the app picks example sentences from these lines. A line may carry its printed `book_page` or a `label` (article
+number such as `1.1`); headings belong in the dialogue `title` (or a `stage` line), not in a narration line.
+
 Authored courses (not printed in any book, e.g. `dutch-grammar-in-use`, modelled on the unit structure of Murphy's
 *English Grammar in Use*): `chapter` carries `authored: true` instead of `book_pages` / `source_images`, a `note`
 saying the content is generated, and optionally `based_on {book, units []}` (the model book's units it replaces).
