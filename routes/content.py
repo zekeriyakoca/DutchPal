@@ -75,6 +75,7 @@ def get_chapter(chapter_id: int, db: Session = Depends(get_db)):
             {
                 "list": entries[0].list_name,
                 "book_page": entries[0].book_page,
+                "generated": bool(entries[0].generated),
                 "items": [
                     {"nl": v.nl, "lemma": v.lemma, "article": v.article, "form": v.form, "en": v.en}
                     for v in entries

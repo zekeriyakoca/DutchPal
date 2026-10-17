@@ -69,7 +69,8 @@ are a contract with the UI; change both together.
 | `GET /content/chapters/{id}` | `{id, book_id, book_title, number, title, goals, note, book_pages [first,last] \| null, dialogues, vocabulary, grammar, exercises, culture, reflection}` |
 
 - `dialogues[]`: `{id, title, audio_tracks, lines [{speaker, text, stage?, narration?}], new_words []}`.
-- `vocabulary[]`: one entry per printed list, `{list, book_page, items [{nl, lemma, article, form, en}]}`.
+- `vocabulary[]`: one entry per word list, `{list, book_page, generated, items [{nl, lemma, article, form, en}]}`;
+  `generated` is true for lists Claude made because the book prints none (see below).
 - `grammar[]`: `{id, title, book_page, content}`; `exercises[]`: `{id, label, type, instruction, book_page, answers_source, payload}`.
 - Chapter and exercise `id` are database ids; dialogue and grammar `id` are the JSON ids (`ch01-d1`).
   Lists keep book order. Exercise answers stay in `payload`; the UI checks them client-side.
@@ -87,7 +88,7 @@ Top level: `schema_version`, `book {id, title, cefr}`, `chapter`, `dialogues`, `
 | --- | --- |
 | `chapter` | `number`, `title`, `pdf_pages [first,last]`, `book_pages [first,last]`, `goals []` (from the cover box) |
 | `dialogues[]` | `id`, `title`, `audio_tracks []` (CD track labels like `1-1`), `book_page`, `lines [{speaker, text}]`; stage directions like `(een poosje later)` are `{speaker: null, text, stage: true}` |
-| `vocabulary[]` | one entry per printed list: `list`, `book_page`, `items [{nl, lemma, article?, form?, en}]`. `nl` = as printed, `lemma` = dictionary form, `form` = inflected form when the list shows `form (lemma)` |
+| `vocabulary[]` | one entry per printed list: `list`, `book_page`, `items [{nl, lemma, article?, form?, en}]`. `nl` = as printed, `lemma` = dictionary form, `form` = inflected form when the list shows `form (lemma)`. Lists not printed in the book carry `generated: true` (see below) |
 | `grammar[]` | `id`, `title`, `book_page`, plus whatever fits: `pairs [{q,a}]`, `table {columns, rows}`, `examples []`, `highlight []` (words the book prints in colour), `phrases []`, `conjugation {verbs, rows [{pronoun, forms}]}`, `numbers {}`, `times {}`, `months []`, `seasons []`, `scale` / `responses [{polarity, text}]`, `note` |
 | `exercises[]` | `id`, `label` (e.g. `Opdracht 2`), `book_page`, `type`, `instruction`, and per type: `items`, `prompts`, `example`, `fields`, `parts [{label, instruction}]` (A/B sub-tasks), `steps [{role, text}]` (role-play script), `words []`, `lines [[...]]` (pronunciation rows), `source_text`, `menu` |
 | `culture[]` | culture / "In de praktijk" boxes |
@@ -102,6 +103,16 @@ Authored courses (not printed in any book, e.g. `dutch-grammar-in-use`, modelled
 *English Grammar in Use*): `chapter` carries `authored: true` instead of `book_pages` / `source_images`, a `note`
 saying the content is generated, and optionally `based_on {book, units []}` (the model book's units it replaces).
 Every exercise must have `"answers_source": "generated_needs_review"`. No `book_page` fields.
+
+Generated word lists: books that print no glossary with translations (Delftse, Short Stories, the authored grammar
+course) get one `vocabulary` entry per chapter with `"generated": true` and no `book_page`. The words are the book's
+own new words (Delftse italics, Short Stories bold glossary words) or, for authored units, the key words of the
+examples; `nl` = the word as it appears in the text, `lemma` = dictionary form (infinitive, singular noun with
+`article`, separable verbs and idioms as one unit), `form` = `nl` without article when it differs from the lemma,
+`en` = the meaning in that chapter's sentence. `new_words` stay as they are. The importer stores the flag in
+`vocab_entries.generated` (null/false = printed in the book). Authored chapters may only have generated lists.
+The builders keep these lists in `_build/voc*.py` as compact `nl | lemma | en` lines; `content/vocablist.py` turns
+them into items and refuses a list whose words are not in the chapter text or that misses one of the book's new words.
 
 Exercise types (see `EXERCISE_TYPES` in the validator): `speaking_pair`, `speaking_roleplay`,
 `fill_gap`, `choose_option`, `personal_questions`, `teacher_material`, `classroom_activity`,

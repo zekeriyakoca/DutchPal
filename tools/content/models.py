@@ -8,6 +8,7 @@ list/item position for vocabulary) so the importer can upsert instead of duplica
 """
 
 from sqlalchemy import (
+    Boolean,
     Column,
     DateTime,
     ForeignKey,
@@ -81,6 +82,7 @@ class VocabEntry(Base):
     article = Column(String, nullable=True)  # de / het
     form = Column(String, nullable=True)
     en = Column(String, nullable=False)
+    generated = Column(Boolean, nullable=True)  # list not printed in the book; translations generated
 
     chapter = relationship("Chapter", back_populates="vocab_entries")
 
