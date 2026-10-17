@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from routes import (
     sentences,
     vocabulary,
@@ -11,7 +12,9 @@ from routes import (
     bootstrap,
     translate_word,
     content,
+    word,
 )
+from utils.llm_json import LlmJsonError
 
 app = FastAPI(root_path="/dutchpal-api")
 
@@ -36,6 +39,12 @@ def health_check():
     return {"status": "ok"}
 
 
+@app.exception_handler(LlmJsonError)
+def llm_json_error(request: Request, exc: LlmJsonError):
+    # The model answered, but not with the JSON we asked for (even after a retry).
+    return JSONResponse(status_code=502, content={"detail": str(exc)})
+
+
 app.include_router(bootstrap.router)
 app.include_router(chat.router)
 app.include_router(ask.router)
@@ -46,3 +55,4 @@ app.include_router(grammar.router)
 app.include_router(translate.router)
 app.include_router(translate_word.router)
 app.include_router(content.router)
+app.include_router(word.router)

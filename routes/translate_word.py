@@ -1,60 +1,52 @@
 import asyncio
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from tools.chat_with_ai import (
-    chat_fast,
-    chat_smart,
-    chat_with_openai_5_mini,
-    chat_with_openai_5_nano,
-)
+from sqlalchemy.orm import Session
+from services.word_lookup import WordLookup, lookup_word
+from tools.chat_with_ai import chat_with_openai_5_mini
 
 import json
-import re
+from utils.db import get_db
+from utils.llm_json import extract_json_object
 from utils.provider_errors import raise_openai_unavailable_if_provider_error
 
 router = APIRouter()
 
 
 class TranslateRequest(BaseModel):
-    message: str  # the sentence to translate
-    response_quality: int = (
-        1  # 3 for high-quality model, 2 for medium-quality model, 1 for low-quality model
-    )
+    message: str  # the word to translate
 
 
+# Kept for the text-selection buttons, which show this Markdown in a toast.
+# It renders the grounded /word/lookup result instead of asking an LLM for a table.
 @router.post("/translate-word")
-async def translate_word(req: TranslateRequest):
-    prompt = build_vocab_prompt(req.message)
-
+async def translate_word(req: TranslateRequest, db: Session = Depends(get_db)):
     try:
-        if req.response_quality == 3:
-            result = await asyncio.to_thread(chat_with_openai_5_nano, prompt)
-        elif req.response_quality == 2:
-            result = await asyncio.to_thread(chat_smart, prompt)
-        else:
-            result = await asyncio.to_thread(chat_fast, prompt)
+        result = await lookup_word(db, req.message)
     except Exception as exc:
         raise_openai_unavailable_if_provider_error(exc)
 
-    return {"response": result}
+    return {"response": lookup_as_markdown(result)}
 
 
-def build_vocab_prompt(word: str) -> str:
-    return f"""
-    Generate a **Markdown table** of Dutch word : {word}.
-    There will be only one row in the table.
-
-    - **Include the following columns**:
-
-    - Word (e.g. wonen; base/dictionary form, 'infinitive' column if verb)
-    - Translation (short English meaning)  
-    - Examples (2 example sentences with your own knowledge. Make 'Word' or any for of it under 'Prensent', 'V2', 'V3' column bold in the sentence. Seperate each example with a <br> tag. e.g. Uit welk land komt u?<br>Uit welk land kom je?)  
-    - Present present column if verb (e.g. woon/woont/wonen)
-    - V2(past) v2_form column if verb (e.g. woonde/woonde/woonden)
-    - V3(past perfect) v3_form if verb (e.g. gewoond)
-
-    Return the result **as a Markdown table only** — do not include any explanation or extra text.
-    """
+def lookup_as_markdown(lookup: WordLookup) -> str:
+    cells = {
+        "Word": f"{lookup.article} {lookup.lemma}" if lookup.article else lookup.lemma,
+        "Translation": ", ".join(lookup.translations),
+        "Level": lookup.cefr_level,
+        "Examples": "<br>".join(lookup.examples),
+        "Present": lookup.forms.present,
+        "V2": lookup.forms.v2,
+        "V3": lookup.forms.v3,
+    }
+    cells = {name: value.replace("|", "\\|") for name, value in cells.items() if value}
+    return "\n".join(
+        [
+            "| " + " | ".join(cells) + " |",
+            "|" + " --- |" * len(cells),
+            "| " + " | ".join(cells.values()) + " |",
+        ]
+    )
 
 
 @router.post("/translate-word-as-json")
@@ -100,15 +92,3 @@ def build_vocab_prompt_for_json_response(word: str) -> str:
     Do not return any explanation or extra text — only the JSON object.
     """
 
-
-def extract_json_object(text: str) -> str:
-    cleaned = text.strip()
-    fenced = re.search(r"```(?:json)?\s*(.*?)\s*```", cleaned, flags=re.DOTALL)
-    if fenced:
-        cleaned = fenced.group(1).strip()
-
-    start = cleaned.find("{")
-    end = cleaned.rfind("}")
-    if start >= 0 and end >= start:
-        return cleaned[start : end + 1]
-    return cleaned
