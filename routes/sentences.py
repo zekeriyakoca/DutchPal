@@ -1,7 +1,8 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 from services.app_service import find_or_get_sentences
-from tools.agent import SessionLocal
 from pydantic import BaseModel
+from utils.db import get_db
 from utils.provider_errors import raise_openai_unavailable_if_provider_error
 from typing import Optional
 from tabulate import tabulate
@@ -17,11 +18,11 @@ class SentenceRequest(BaseModel):
 
 
 @router.post("/sentences")
-async def get_sentences(req: SentenceRequest):
+async def get_sentences(req: SentenceRequest, db: Session = Depends(get_db)):
 
     try:
         result = await find_or_get_sentences(
-            db=SessionLocal(),
+            db=db,
             limit=req.number_of_entries,
             cefr_level=req.level,
             book_id=req.book_id,

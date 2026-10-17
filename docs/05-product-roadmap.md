@@ -73,8 +73,8 @@ Method and schema: [06-content-extraction.md](06-content-extraction.md).
 - [ ] Enter submits in Chat; loading state per panel; readable error per panel (not only the 3 s toast).
 
 ### 1.5 Safety net
-- [ ] Smoke/e2e tests for the core loop (open chapter, look up word, play exercise, generate quiz).
-- [ ] FastAPI DB session dependency with `try/finally close()`.
+- [x] Smoke/e2e tests for the core loop (open chapter, look up word, play exercise, generate quiz).
+- [x] FastAPI DB session dependency with `try/finally close()`.
 - [ ] Nightly backup of `dutchpal-postgres` (add to `/opt/k3s-backup/backup.sh` on the VM).
 
 ## Phase 2 — stable features

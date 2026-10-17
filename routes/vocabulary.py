@@ -1,7 +1,8 @@
 import asyncio
-from fastapi import APIRouter
-from tools.agent import SessionLocal
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from utils.db import get_db
 from utils.provider_errors import raise_openai_unavailable_if_provider_error
 from typing import Optional
 from services.app_service import (
@@ -25,9 +26,7 @@ class VocabRequest(BaseModel):
 
 
 @router.post("/vocabulary")
-async def get_vocabulary(req: VocabRequest):
-
-    db = SessionLocal()
+async def get_vocabulary(req: VocabRequest, db: Session = Depends(get_db)):
     try:
         vocabularies = await get_vocabularies(
             db=db,

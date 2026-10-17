@@ -1,9 +1,11 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 from httpx import AsyncClient
-from tools.agent import language_agent, SessionLocal, Deps
+from tools.agent import language_agent, Deps
 from pydantic import BaseModel
 from typing import Optional
 from utils.agent_result import agent_output
+from utils.db import get_db
 from utils.provider_errors import raise_openai_unavailable_if_provider_error
 
 router = APIRouter()
@@ -21,9 +23,8 @@ class QueryRequest(BaseModel):
 
 
 @router.post("/ask")
-async def ask_language_agent(req: QueryRequest):
+async def ask_language_agent(req: QueryRequest, db: Session = Depends(get_db)):
     async with AsyncClient(timeout=60) as client:
-        db = SessionLocal()
         deps = Deps(client=client, db=db)
         prompt = build_prompt(
             req.page,

@@ -1,10 +1,12 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 from httpx import AsyncClient
 from services.app_service import get_paragraph_questions
-from tools.agent import language_agent, SessionLocal, Deps
+from tools.agent import language_agent, Deps
 from pydantic import BaseModel
 from typing import Optional
 from utils.agent_result import agent_output
+from utils.db import get_db
 from utils.provider_errors import raise_openai_unavailable_if_provider_error
 
 router = APIRouter()
@@ -19,9 +21,7 @@ class QuizRequest(BaseModel):
 
 
 @router.post("/quiz")
-async def generate_quiz(req: QuizRequest):
-    db = SessionLocal()
-
+async def generate_quiz(req: QuizRequest, db: Session = Depends(get_db)):
     if req.quiz_type == "PARAGRAPH":
         questionGroups = get_paragraph_questions(
             db,
