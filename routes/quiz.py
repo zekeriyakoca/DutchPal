@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from httpx import AsyncClient
-from services.app_service import get_paragraph_questions
 from tools.agent import language_agent, Deps
 from pydantic import BaseModel
 from typing import Optional
@@ -16,7 +15,7 @@ class QuizRequest(BaseModel):
     level: str = "ALL LEVELS"
     difficulty: int = 5
     number_of_entries: int = 5
-    book_id: Optional[int] = None
+    book_id: Optional[str] = None  # content book slug
     quiz_type: Optional[str] = None  # e.g., "grammar", "vocab", etc.
 
 
@@ -34,15 +33,6 @@ class Quiz(BaseModel):
 
 @router.post("/quiz")
 async def generate_quiz(req: QuizRequest, db: Session = Depends(get_db)):
-    if req.quiz_type == "PARAGRAPH":
-        # Stored open questions with free-text answers (no options), so they stay markdown.
-        questionGroups = get_paragraph_questions(
-            db,
-            limit=req.number_of_entries,
-            cefr_level=req.level,
-        )
-        return {"response": convert_question_groups_to_markdown(questionGroups)}
-
     async with AsyncClient(timeout=60) as client:
         deps = Deps(client=client, db=db)
         try:
@@ -97,50 +87,15 @@ def valid_questions(questions: list[QuizQuestion]) -> list[QuizQuestion]:
     return valid
 
 
-def convert_question_groups_to_markdown(data: list) -> str:
-    """
-    Converts question group data into Markdown:
-    - # Title
-    - Paragraph
-    - ### Vragen (with spacing)
-    - #### Antwoorden (at bottom, lowercase, with newlines between)
-    """
-    question_lines = []
-    answer_lines = []
-
-    for group in data:
-        question_lines.append(f"# {group['title'].strip()}")
-        question_lines.append(group["text"].strip())
-        question_lines.append("")
-        question_lines.append("### Vragen")
-
-        for i, question in enumerate(group["questions"], 1):
-            question_lines.append(f"{i}- {question['question_text'].strip()}")
-            question_lines.append("")  # blank line after each question
-
-        for i, question in enumerate(group["questions"], 1):
-            answer_text = " / ".join(a.strip().lower() for a in question["answers"])
-            answer_lines.append(f"{i}: {answer_text}")
-
-        question_lines.append("")  # space between groups
-        answer_lines.append("")  # space between answer groups
-
-    question_lines.append("#### Antwoorden")
-    question_lines.append("")
-    question_lines.extend(answer_lines)
-
-    return "\n".join(question_lines)
-
-
 def build_quiz_prompt(
     level: str,
     difficulty: int,
     number_of_entries: int,
-    book_id: Optional[int],
+    book_id: Optional[str],
     quiz_type: Optional[str],
 ) -> str:
     book_selection_directive = (
-        f"- Use words or examples from book ID {book_id} when possible.\n"
+        f"- Use words from the textbook with book_id '{book_id}' when possible.\n"
         if book_id
         else ""
     )

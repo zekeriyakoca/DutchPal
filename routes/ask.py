@@ -17,7 +17,7 @@ class QueryRequest(BaseModel):
     level: str = "ALL LEVELS"
     difficulty: int = 5
     number_of_entries: int = 1
-    book_id: Optional[int] = None
+    book_id: Optional[str] = None
     word_type: Optional[str] = None
     quiz_type: Optional[str] = None
 
@@ -49,7 +49,7 @@ def build_prompt(
     level: str,
     difficulty: int,
     number_of_entries: int,
-    book_id: Optional[int],
+    book_id: Optional[str],
     word_type: str,
     quiz_type,
 ) -> str:

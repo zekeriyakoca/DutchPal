@@ -2,7 +2,6 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from routes import (
-    sentences,
     vocabulary,
     quiz,
     ask,
@@ -48,7 +47,6 @@ def llm_json_error(request: Request, exc: LlmJsonError):
 app.include_router(bootstrap.router)
 app.include_router(chat.router)
 app.include_router(ask.router)
-app.include_router(sentences.router)
 app.include_router(vocabulary.router)
 app.include_router(quiz.router)
 app.include_router(grammar.router)

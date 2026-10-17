@@ -2,22 +2,22 @@ from __future__ import annotations as _annotations
 
 import asyncio
 
-import json
 import os
+import random
+import re
 from dataclasses import dataclass
-from typing import Any, List
+from typing import Any, Optional
 
 import logfire
 import openai
 import numpy as np
 from httpx import AsyncClient
-from sqlalchemy import create_engine, text as sql_text
+from sqlalchemy import String, cast, create_engine, or_, text as sql_text
 from sqlalchemy.orm import sessionmaker
 from pydantic import BaseModel, Field
-from pydantic_ai import RunContext
 from dotenv import load_dotenv
 from tools.chat_with_ai import chat_fast, chat_with_openai_5_mini
-from utils.cerf_helper import map_to_joint_levels
+from tools.content.models import Chapter, Dialogue, Exercise
 from utils.llm_json import ask_llm_json
 
 env_file = ".env.production" if os.getenv("ENV") == "production" else ".env"
@@ -83,222 +83,48 @@ async def translate(sentence: str) -> str:
     return mdText
 
 
-async def find_lesson_by_name(ctx: RunContext[Deps], text: str) -> str:
-    """
-    Searches embedded Dutch books for the most relevant lesson using similarity.
-    - `text`: Input text to match.
-    Returns the lesson title and content.
-    """
-
-    db = ctx.deps.db
-
-    # Generate the embedding for the question
-    embedded = await asyncio.to_thread(create_embedding, text)
-    vector_str = f"[{', '.join(map(str, embedded))}]"
-
-    # Query the database using pgvector cosine similarity
-    result = db.execute(
-        sql_text(
-            """
-            SELECT title, content
-            FROM sections
-            ORDER BY embedding <-> CAST(:embedding AS vector)
-            LIMIT 1
-        """
-        ),
-        {"embedding": vector_str},
-    ).fetchone()
-
-    if result:
-        return f"## {result.title}\n\n{result.content}"
-    return "No relevant lesson found."
-
-
-async def find_or_get_sentences(
+def find_sentence_containing_word(
     db: Any,
-    text: str = None,
+    word_forms: list[str],
     limit: int = 1,
-    book_id: int = None,
-    cefr_level: str = "ALL LEVELS",
-) -> list[dict]:
-    """
-    Finds similar sentences or retrieves random sentences from embedded Dutch books.
-    - `text`: The input text to find similar sentences for (optional).
-    - `limit`: The maximum number of sentences.
-    - `book_id`: (Optional) Filter by book.
-    - `cefr_level`: (Optional) Filter by CEFR level (e.g., A1, B2).
-    Returns a list of objects like [{"sentence": "...", "translation": "..."}].
-    """
-
-    # Validate input
-    if limit < 1:
-        raise Exception("Limit must be at least 1.")
-    if limit > 10:
-        raise Exception("Limit must be at most 50.")
-
-    if cefr_level not in ["A1", "A2", "B1", "B2", "C1", "C2", "ALL LEVELS"]:
-        raise Exception(
-            "Invalid CEFR level. Valid options are: A1, A2, B1, B2, C1, C2, ALL LEVELS."
-        )
-
-    # SQL query for random sentences
-    if not text:
-        sql = """
-            SELECT s.id AS id, s.text AS sentence, s.translation AS translation
-            FROM sentences s
-            WHERE (:book_id IS NULL OR :book_id = 0 OR s.book_id = :book_id)
-              AND (:cefr_level = 'ALL LEVELS' OR s.cefr_level = :cefr_level)
-            ORDER BY RANDOM()
-            LIMIT :limit
-        """
-        params = {"book_id": book_id, "cefr_level": cefr_level, "limit": limit}
-
-    # SQL query for embedding-based search
-    else:
-        # Generate the embedding for the input text
-        embedded = await asyncio.to_thread(create_embedding, text)
-        vector_str = f"[{', '.join(map(str, embedded))}]"
-
-        sql = """
-            SELECT s.id AS id, s.text AS sentence, s.translation AS translation
-            FROM sentences s
-            WHERE (:book_id IS NULL OR :book_id = 0 OR s.book_id = :book_id)
-              AND (:cefr_level = 'ALL LEVELS' OR s.cefr_level = :cefr_level)
-            ORDER BY s.embedding <-> CAST(:embedding AS vector)
-            LIMIT :limit
-        """
-        params = {
-            "embedding": vector_str,
-            "book_id": book_id,
-            "cefr_level": cefr_level,
-            "limit": limit,
-        }
-
-    # Execute the query
-    result = db.execute(sql_text(sql), params).fetchall()
-
-    if not result:
-        return []
-
-    # Convert result to a list of dictionaries
-    sentences = [
-        {"id": row.id, "text": row.sentence, "translation": row.translation}
-        for row in result
-    ]
-
-    print(f"{len(sentences)} sentences found.")
-    # Ensure translations for sentences without them
-    sentences = await ensure_translation(db, sentences)
-    # Return the list of sentences with translations
-    return [{"sentence": s["text"], "translation": s["translation"]} for s in sentences]
-
-
-async def ensure_translation(db: Any, sentences: list[dict]) -> list[dict]:
-    """
-    Ensures translations exist for the given list of sentences.
-    If a sentence does not have a translation, it uses the GROK model to translate all missing sentences
-    in a single batch and updates the database with the translations.
-
-    Args:
-        db: Database session.
-        sentences: List of dictionaries with sentence details (e.g., [{"id": 1, "text": "Ik wil leren"}]).
-
-    Returns:
-        List of dictionaries with sentence and translation (e.g., [{"sentence": "...", "translation": "..."}]).
-    """
-    # Filter sentences that do not have translations
-    untranslated_sentences = [s for s in sentences if not s.get("translation")]
-
-    if not untranslated_sentences:
-        return sentences
-
-    print(f"{len(untranslated_sentences)} sentences to be translated.")
-
-    # Prepare the prompt for the GROK model
-    sentences_to_translate = [s["text"] for s in untranslated_sentences]
-    prompt = (
-        "Translate the following Dutch sentences to English. "
-        'Return ONLY AND ONLY array of the translations like this: ["Here you go", "I want to learn", ...]\n\n'
-        "Don't include any extra text or explanations."
-        + "\n".join(sentences_to_translate)
-    )
-    # Call the GROK model to translate all sentences in one batch
-    response = await asyncio.to_thread(chat_fast, prompt)
-
-    translations = json.loads(response)
-
-    # Update the database with the translations
-    for sentence, translation in zip(untranslated_sentences, translations):
-        sentence["translation"] = translation.strip()
-        print(
-            f"Updating translation for sentence ID {sentence['id']}: {translation.strip()}"
-        )
-        db.execute(
-            sql_text("UPDATE sentences SET translation = :translation WHERE id = :id"),
-            {"translation": translation.strip(), "id": sentence["id"]},
-        )
-
-    db.commit()
-
-    # Return the updated list of sentences with translations
-    return sentences
-
-
-async def find_sentence_containing_word(
-    db: Any,
-    word_forms: List[str],
-    limit: int = 1,
-    book_id: int = None,
-    cefr_level: str = "ALL LEVELS",
+    book_id: Optional[str] = None,
 ) -> list[str]:
     """
-    Finds sentences from embedded Dutch books containing a word.
-    - `word`: Word to search for.
-    - `limit`: Max results.
-    - `book_id`: (Optional) Filter by book.
-    Returns the sentences containing the word; empty for invalid input.
+    Example sentences from the textbooks (dialogue lines and exercise items) that contain
+    one of `word_forms` as a whole word, case-insensitively.
+    - `book_id`: (Optional) Only from this book (slug).
+    Returns up to `limit` random matches; empty for invalid input.
     """
-
-    if limit < 1 or limit > 10:
+    forms = sorted({w.strip().lower() for w in word_forms if len(w.strip()) > 1})
+    if not forms or limit < 1:
         return []
 
-    word_forms = [w.strip() for w in word_forms if len(w.strip()) > 1]
-
-    if not word_forms or len(word_forms[0]) > 20:
-        return []
-
-    result = retrieve_sentences(db, word_forms, limit, book_id, cefr_level)
-    if not result:
-        result = retrieve_sentences(db, word_forms, limit, book_id, "ALL LEVELS")
-
-    print(f"{len(result)} sentences found.")
-    return [row.sentence for row in result]
+    pattern = re.compile(rf"(?<!\w)({'|'.join(map(re.escape, forms))})(?!\w)", re.IGNORECASE)
+    texts = [t for t in example_texts(db, forms, book_id) if pattern.search(t)]
+    return random.sample(texts, min(limit, len(texts)))
 
 
-def retrieve_sentences(db, word_forms, limit, book_id, cefr_level):
-    cefr_level_set = map_to_joint_levels(cefr_level)
-    base_sql = """
-        SELECT s.text AS sentence
-        FROM sentences s
-        WHERE to_tsvector('dutch', s.text) @@ to_tsquery('dutch', :tsquery)
-        AND (:book_id IS NULL OR :book_id = 0 OR s.book_id = :book_id)
-        AND (:cefr_level = 'ALL LEVELS' OR s.cefr_level = ANY(:cefr_level_set))
-        ORDER BY RANDOM()
-        LIMIT :limit
-    """
+def example_texts(db: Any, forms: list[str], book_id: Optional[str]) -> list[str]:
+    """Sentences from the rows whose JSON mentions one of the forms (a cheap SQL pre-filter)."""
 
-    result = db.execute(
-        sql_text(base_sql),
-        {
-            "tsquery": " | ".join(word_forms),
-            "book_id": book_id,
-            "limit": limit,
-            "cefr_level": cefr_level,
-            "cefr_level_set": cefr_level_set,
-        },
-    ).fetchall()
+    def mentions(column):
+        return or_(*(cast(column, String).ilike(f"%{form}%") for form in forms))
 
-    return result
+    dialogues = db.query(Dialogue.lines).filter(mentions(Dialogue.lines))
+    exercises = db.query(Exercise.payload).filter(mentions(Exercise.payload))
+    if book_id:
+        dialogues = dialogues.join(Dialogue.chapter).filter(Chapter.book_id == book_id)
+        exercises = exercises.join(Exercise.chapter).filter(Chapter.book_id == book_id)
+
+    texts = [line.get("text") for (lines,) in dialogues for line in lines if not line.get("stage")]
+    texts += [
+        item.get("text")
+        for (payload,) in exercises
+        for item in payload.get("items", [])
+        if isinstance(item, dict)
+    ]
+    # Gap ("___") and choice ("{a/b}") items are not finished sentences.
+    return list(dict.fromkeys(t for t in texts if isinstance(t, str) and "___" not in t and "{" not in t))
 
 
 async def get_vocabularies(
@@ -380,91 +206,6 @@ async def get_vocabularies(
     # )
 
 
-def get_paragraph_questions(db: Any, limit: int = 1, cefr_level="ALL LEVELS") -> list:
-    """
-    Returns a list of question groups, each with:
-    - title
-    - text (paragraph)
-    - cefr_level
-    - questions: list of { question_text, answers: [str] }
-    """
-    if limit < 1:
-        raise ValueError("Limit must be at least 1.")
-    if limit > 10:
-        raise ValueError("Limit must be at most 10.")
-
-    return retrieve_questions(db, limit, cefr_level)
-
-
-def retrieve_questions(db, limit: int, cefr_level: str):
-    query = """
-        WITH selected_groups AS (
-            SELECT id
-            FROM question_groups
-            WHERE question_type = 'paragraph'
-            {cefr_filter}
-            ORDER BY RANDOM()
-            LIMIT :group_limit
-        )
-        SELECT 
-            qg.id AS group_id,
-            qg.title AS group_title,
-            qg.text AS group_text,
-            qg.cefr_level AS group_cefr_level,
-            qi.id AS question_id,
-            qi.question_text,
-            qi.answer,
-            qi.order_index
-        FROM selected_groups sg
-        JOIN question_groups qg ON qg.id = sg.id
-        JOIN question_items qi ON qg.id = qi.group_id
-        ORDER BY qg.id, qi.order_index
-    """
-
-    cefr_filter = ""
-    params = {"group_limit": limit}
-
-    if cefr_level and cefr_level.upper() != "ALL LEVELS":
-        cefr_filter = "AND cefr_level = :cefr_level"
-        params["cefr_level"] = cefr_level.upper()
-
-    final_sql = query.format(cefr_filter=cefr_filter)
-
-    rows = db.execute(sql_text(final_sql), params).fetchall()
-
-    # Group by question group ID
-    groups = {}
-    for row in rows:
-        gid = row.group_id
-        qid = row.question_id
-
-        if gid not in groups:
-            groups[gid] = {
-                "title": row.group_title,
-                "text": row.group_text,
-                "cefr_level": row.group_cefr_level,
-                "questions": {},
-            }
-
-        if qid not in groups[gid]["questions"]:
-            groups[gid]["questions"][qid] = {
-                "question_text": row.question_text,
-                "answers": [],
-            }
-
-        groups[gid]["questions"][qid]["answers"].append(row.answer)
-
-    # Flatten questions into a list
-    return [
-        {
-            "title": g["title"],
-            "text": g["text"],
-            "cefr_level": g["cefr_level"],
-            "questions": list(g["questions"].values()),
-        }
-        for g in groups.values()
-    ]
-
 
 async def explain_grammar(client: AsyncClient, sentence: str) -> str:
     """Explain the grammar rules in the given Dutch sentence."""
@@ -500,31 +241,6 @@ async def explain(sentence: str) -> str:
     return await asyncio.to_thread(chat_with_openai_5_mini, prompt)
 
 
-async def find_book_id(ctx: RunContext[Deps], bookName: str) -> str:
-    """
-    Finds the most relevant book ID by name.
-    - `bookName`: Book name to search.
-    Returns the book ID or a message if not found.
-    """
-
-    # Query the database using pgvector cosine similarity
-    result = ctx.deps.db.execute(
-        sql_text(
-            """
-            SELECT id, title
-            FROM books
-            WHERE title = :bookName
-            LIMIT 1
-        """
-        ),
-        {"bookName": bookName},
-    ).fetchone()
-
-    if result:
-        return result.id
-    return "No relevant book found."
-
-
 def cosine_similarity(a: list[float], b: list[float]) -> float:
     a, b = np.array(a), np.array(b)
     return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
@@ -537,9 +253,6 @@ def parse_embedding(text: str) -> list[float]:
 __all__ = [
     "Deps",
     "SessionLocal",
-    "find_lesson_by_name",
     "find_sentence_containing_word",
-    "find_or_get_sentences",
     "get_vocabularies",
-    "find_book_id",
 ]

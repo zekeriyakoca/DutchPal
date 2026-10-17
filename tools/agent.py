@@ -9,17 +9,13 @@ from typing import Any
 import logfire
 import numpy as np
 from httpx import AsyncClient
-from sqlalchemy import create_engine, text as sql_text
+from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.openai import OpenAIChatModelSettings
 from dotenv import load_dotenv
-from services.app_service import (
-    find_lesson_by_name,
-    get_vocabularies,
-    find_book_id,
-    find_or_get_sentences,
-)
+from services.app_service import find_sentence_containing_word, get_vocabularies
+from tools.content.models import Chapter, VocabEntry
 from utils.agent_result import agent_output
 
 env_file = ".env.production" if os.getenv("ENV") == "production" else ".env"
@@ -81,32 +77,20 @@ elif agent_model == "grok:llama4-scout":
 
 
 @language_agent.tool
-async def find_lesson(ctx: RunContext[Deps], text: str) -> str:
-    """
-    Searches embedded Dutch books for the most relevant lesson using similarity.
-    - `text`: Input text to match.
-    Returns the lesson title and content.
-    """
-    return await find_lesson_by_name(ctx, text)
-
-
-@language_agent.tool
-async def find_sentences(
+async def find_example_sentences(
     ctx: RunContext[Deps],
-    text: str,
-    limit: int = 1,
-    book_id: int = None,
-    cefr_level: str = "ALL LEVELS",
+    word_forms: list[str],
+    limit: int = 3,
+    book_id: str = None,
 ) -> str:
     """
-    Finds similar sentences from embedded Dutch books. Also finds sentences containing the word. Also used to retrieve random sentences when text is empty.
-    - `text`: The input text to find similar sentences for. Also used to find sentences containing the word. If empty, it will return random sentences.
+    Finds example sentences from the textbooks (dialogues and exercises) containing a word.
+    - `word_forms`: The word and its forms to look for, e.g. ["lopen", "loopt", "liep"].
     - `limit`: The maximum number of sentences.
-    - `book_id`: (Optional) Filter by book.
-    - `cefr_level`: (Optional) Filter by CEFR level (e.g., A1, B2)).
-    Returns a comma-separated list of similar sentence texts.
+    - `book_id`: (Optional) Only from this book (see get_books).
+    Returns a JSON list of sentences.
     """
-    result = await find_or_get_sentences(ctx.deps.db, text, limit, book_id, cefr_level)
+    result = find_sentence_containing_word(ctx.deps.db, word_forms, limit, book_id)
     return json.dumps(result, ensure_ascii=False)
 
 
@@ -148,37 +132,31 @@ async def get_vocabularies_from_dataset(
 
 
 @language_agent.tool
-async def find_book_id_by_name(ctx: RunContext[Deps], bookName: str) -> str:
+async def get_books(ctx: RunContext[Deps]) -> str:
     """
-    Finds the most relevant book ID by name.
-    - `bookName`: Book name to search.
-    Returns the book ID or a message if not found.
+    Returns the textbooks in the dataset as a JSON list of {"book_id", "title"}.
     """
-
-    return await find_book_id(ctx, bookName)
+    rows = ctx.deps.db.query(Chapter.book_id, Chapter.book_title).distinct().all()
+    return json.dumps([{"book_id": b, "title": t} for b, t in rows], ensure_ascii=False)
 
 
 @language_agent.tool
-async def get_book_names(ctx: RunContext[Deps]) -> list[str]:
+async def get_book_words(ctx: RunContext[Deps], book_id: str, limit: int = 20) -> str:
     """
-    Return array of name of books in the dataset. Limit to 10 books.
+    Random words from a textbook's word lists.
+    - `book_id`: The book (see get_books).
+    - `limit`: Max results.
+    Returns a JSON list of {"nl", "en"}, e.g. {"nl": "het huis", "en": "house"}.
     """
-
-    result = ctx.deps.db.execute(
-        sql_text(
-            """
-            SELECT title
-            FROM books
-            ORDER BY RANDOM()
-            LIMIT 10
-        """
-        ),
-        {},
-    ).fetchall()
-
-    if result:
-        return [book.title for book in result]
-    return "No relevant book found."
+    rows = (
+        ctx.deps.db.query(VocabEntry.nl, VocabEntry.en)
+        .join(VocabEntry.chapter)
+        .filter(Chapter.book_id == book_id)
+        .order_by(func.random())
+        .limit(limit)
+        .all()
+    )
+    return json.dumps([{"nl": nl, "en": en} for nl, en in rows], ensure_ascii=False)
 
 
 @language_agent.tool
@@ -223,55 +201,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-
-# @language_agent.tool
-# async def find_sentence(
-#     ctx: RunContext[Deps], word: str, limit: int = 1, book_id: int = None
-# ) -> str:
-#     """
-#     Finds sentences from embedded Dutch books containing a word.
-#     - `word`: Word to search for.
-#     - `limit`: Max results.
-#     - `book_id`: (Optional) Filter by book.
-#     Returns a comma-separated list of sentences containing the word.
-#     """
-
-#     return find_sentence_containing_word(ctx.deps.db, word, limit, book_id)
-
-
-# @language_agent.tool
-# async def get_random_sentences(
-#     ctx: RunContext[Deps],
-#     limit: int = 1,
-#     book_id: int = None,
-#     cefr_level: str = "ALL LEVELS",
-# ) -> str:
-#     """
-#     Retrieve random Dutch sentences from the dataset.
-#     - `limit`: Max results.
-#     - `book_id`: (Optional) Filter by book.
-#     - `cefr_level`: (Optional) Filter by CEFR level (e.g., A1, B2)).
-#     Returns a comma-separated list of random sentence texts.
-#     """
-
-#     db = ctx.deps.db
-
-#     sql = """
-#         SELECT s.text AS sentence
-#         FROM sentences s
-#         WHERE (:book_id IS NULL OR :book_id = 0 OR s.book_id = :book_id)
-#           AND (:cefr_level = 'ALL LEVELS' OR s.cefr_level = :cefr_level)
-#         ORDER BY RANDOM()
-#         LIMIT :limit
-#     """
-
-#     params = {"book_id": book_id, "cefr_level": cefr_level, "limit": limit}
-
-#     result = db.execute(sql_text(sql), params).fetchall()
-
-#     if result:
-#         sentences = [row.sentence for row in result]
-#         return ", ".join(sentences)
-
-#     return "No random sentences found."

@@ -18,7 +18,6 @@ from routes import (
     chat,
     grammar,
     quiz,
-    sentences,
     translate,
     translate_word,
     vocabulary,
@@ -53,8 +52,6 @@ def client(monkeypatch):
 
     # ask, chat and quiz share the same agent instance
     monkeypatch.setattr(ask.language_agent, "run", _fake_agent_run)
-    monkeypatch.setattr(quiz, "get_paragraph_questions", lambda *a, **k: [])
-    monkeypatch.setattr(sentences, "find_or_get_sentences", _fake_list)
     monkeypatch.setattr(vocabulary, "get_vocabularies", _fake_list)
     monkeypatch.setattr(grammar, "explain_grammar", _fake_async)
     monkeypatch.setattr(grammar, "explain", _fake_async)
@@ -81,10 +78,8 @@ def test_health(client):
         ("get", "/bootstrap", None),
         ("post", "/chat", {"message": "hallo"}),
         ("post", "/ask", {"message": "hallo", "page": "grammar"}),
-        ("post", "/sentences", {}),
         ("post", "/vocabulary", {}),
         ("post", "/quiz", {"quiz_type": "grammar"}),
-        ("post", "/quiz", {"quiz_type": "PARAGRAPH"}),
         ("post", "/explain-grammar", {"message": "Ik woon hier."}),
         ("post", "/explain", {"message": "Ik woon hier."}),
         ("post", "/translate", {"message": "Ik woon hier."}),
