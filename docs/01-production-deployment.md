@@ -83,7 +83,7 @@ The app no longer reads `books`, `sections`, `sentences`, `question_groups` or `
 (examples, book selects and the chat agent use the content tables from
 [06-content-extraction.md](06-content-extraction.md)). `vocabulary` stays: Vocab Game and
 `/word/lookup` use it. Once that API version is deployed and a backup is taken, drop them
-(not run automatically):
+(done in production on 2026-10-17 after a backup; kept here for other environments):
 
 ```sql
 BEGIN;
