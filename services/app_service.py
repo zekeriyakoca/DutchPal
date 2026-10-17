@@ -12,13 +12,16 @@ import logfire
 import openai
 import numpy as np
 from httpx import AsyncClient
-from sqlalchemy import String, cast, create_engine, or_, text as sql_text
+from sqlalchemy import String, cast, create_engine, or_, text as sql_text, true
 from sqlalchemy.orm import sessionmaker
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from tools.chat_with_ai import chat_fast, chat_with_openai_5_mini
 from tools.content.models import Chapter, Dialogue, Exercise
 from utils.llm_json import ask_llm_json
+
+SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
+WORD = re.compile(r"[^\W\d_]+(?:[-'][^\W\d_]+)*")
 
 env_file = ".env.production" if os.getenv("ENV") == "production" else ".env"
 load_dotenv(env_file)
@@ -100,15 +103,17 @@ def find_sentence_containing_word(
         return []
 
     pattern = re.compile(rf"(?<!\w)({'|'.join(map(re.escape, forms))})(?!\w)", re.IGNORECASE)
-    texts = [t for t in example_texts(db, forms, book_id) if pattern.search(t)]
-    return random.sample(texts, min(limit, len(texts)))
+    sentences = (s for t in example_texts(db, forms, book_id) for s in SENTENCE_END.split(t))
+    matches = list(dict.fromkeys(s.strip() for s in sentences if pattern.search(s)))
+    return random.sample(matches, min(limit, len(matches)))
 
 
-def example_texts(db: Any, forms: list[str], book_id: Optional[str]) -> list[str]:
-    """Sentences from the rows whose JSON mentions one of the forms (a cheap SQL pre-filter)."""
+def example_texts(db: Any, forms: Optional[list[str]], book_id: Optional[str]) -> list[str]:
+    """Dialogue lines and finished exercise sentences; with `forms`, only rows whose JSON
+    mentions one of them (a cheap SQL pre-filter)."""
 
     def mentions(column):
-        return or_(*(cast(column, String).ilike(f"%{form}%") for form in forms))
+        return or_(*(cast(column, String).ilike(f"%{form}%") for form in forms)) if forms else true()
 
     dialogues = db.query(Dialogue.lines).filter(mentions(Dialogue.lines))
     exercises = db.query(Exercise.payload).filter(mentions(Exercise.payload))
@@ -127,12 +132,18 @@ def example_texts(db: Any, forms: list[str], book_id: Optional[str]) -> list[str
     return list(dict.fromkeys(t for t in texts if isinstance(t, str) and "___" not in t and "{" not in t))
 
 
+def content_words(db: Any, book_id: Optional[str]) -> list[str]:
+    """Every word that occurs in the textbook texts (optionally one book), lower-cased."""
+    return sorted({w.lower() for t in example_texts(db, None, book_id) for w in WORD.findall(t)})
+
+
 async def get_vocabularies(
     db: Any,
     word_to_search: str = None,
     limit: int = 1,
     cefr_level: str = "ALL LEVELS",
     pos: str = None,
+    book_id: Optional[str] = None,
 ) -> str:
     """
     Retrieves vocabulary from embedded Dutch books.
@@ -168,17 +179,25 @@ async def get_vocabularies(
             "limit": limit,
         }
     else:
-        # Random vocab retrieval
+        # Random words that occur in the textbooks, so each one has example sentences.
         sql = """
             SELECT lemma, pos, cefr_level, encounter_count, infinitive, present_form, v2_form, v3_form
             FROM vocabulary
             WHERE (:cefr_level = 'ALL LEVELS' OR cefr_level = :cefr_level)
               AND (:pos IS NULL OR pos = :pos)
+              AND (lower(lemma) = ANY(:words)
+                   OR string_to_array(lower(coalesce(present_form, '') || '/' || coalesce(v2_form, '')
+                                            || '/' || coalesce(v3_form, '')), '/') && :words)
             ORDER BY RANDOM()
             LIMIT :limit
         """
 
-        params = {"cefr_level": cefr_level, "pos": pos, "limit": limit}
+        params = {
+            "cefr_level": cefr_level,
+            "pos": pos,
+            "limit": limit,
+            "words": content_words(db, book_id),
+        }
 
     result = db.execute(sql_text(sql), params).fetchall()
 

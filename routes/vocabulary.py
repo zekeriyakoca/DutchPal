@@ -29,6 +29,7 @@ async def get_vocabulary(req: VocabRequest, db: Session = Depends(get_db)):
             limit=req.number_of_entries,
             cefr_level=req.level,
             pos=None if req.word_type == "ALL TYPES" else req.word_type,
+            book_id=req.book_id,
         )
     except Exception as exc:
         raise_openai_unavailable_if_provider_error(exc)
@@ -65,13 +66,5 @@ def get_all_forms_of_word(vocab: dict) -> list[str]:
     """
     Get all forms of a word from the vocabulary dictionary.
     """
-    return (
-        [
-            vocab["lemma"],
-            *vocab["present_form"].split("/"),
-            *vocab["v2_form"].split("/"),
-            *vocab["v3_form"].split("/"),
-        ]
-        if vocab["pos"] == "verb"
-        else [vocab["lemma"]]
-    )
+    forms = [vocab["present_form"], vocab["v2_form"], vocab["v3_form"]]
+    return [vocab["lemma"], *(f for form in forms if form for f in form.split("/"))]
