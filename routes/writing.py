@@ -149,6 +149,8 @@ def build_writing_prompt(exercise: Exercise, aspects: list[tuple[str, int]], uni
     {json.dumps(task, ensure_ascii=False)}
 
     The task may show pictures you cannot see; do not take points off for details only the pictures would show.
+    The answer fills the ___ in `prompt`: read it in that place (it may continue a sentence, so it can start
+    in lowercase).
 
     The candidate's answer:
     \"\"\"
@@ -158,14 +160,17 @@ def build_writing_prompt(exercise: Exercise, aspects: list[tuple[str, int]], uni
     Reply with one JSON object:
     - `criteria`: exactly these aspects, in this order, each `{{"name", "score", "max", "comment"}}`;
       `score` is a whole number from 0 to the maximum, `comment` one or two short sentences in English
-      on why that score:
+      on why that score. The grammar and spelling scores must agree with the errors you list: a sentence task
+      gets its grammar point only when the required structure is written without errors.
     {aspect_lines}
     - `corrections`: every language error in the answer, `{{"original", "corrected", "explanation"}}`;
       `original` is the wrong words copied exactly from the answer, `corrected` the right Dutch,
-      `explanation` one short sentence in English. An empty list when there are no errors.
+      `explanation` one short sentence in English. Only real errors: no style preferences, and no changes
+      to a form that is also correct (e.g. both orders of a final verb cluster). An empty list when there
+      are no errors.
     - `grammar_units`: 0 to {MAX_GRAMMAR_UNITS} units from the grammar book below that would help most with
       these errors, `{{"chapter_id", "why"}}`; `chapter_id` is the number before the title,
-      `why` one short sentence in English.
+      `why` one short sentence in English. An empty list when there are no errors.
     - `improved_text`: the candidate's own answer, corrected and improved to a good {chapter.book_cefr} answer;
       keep their content and only write the part the candidate writes. Dutch, plain text.
 
