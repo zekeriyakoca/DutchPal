@@ -31,3 +31,10 @@ DevOps
 **/*.pem
 content
 media
+
+# Claude Code worktrees: full repo copies with their own .env, content and media
+.claude
+**/.env
+**/.env.*
+**/content
+**/media
