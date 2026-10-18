@@ -32,9 +32,7 @@ DevOps
 content
 media
 
-# Claude Code worktrees: full repo copies with their own .env, content and media
+# Claude Code worktrees: full repo copies with their own .env, content and media (tools/content is code, so no **/content)
 .claude
 **/.env
 **/.env.*
-**/content
-**/media
