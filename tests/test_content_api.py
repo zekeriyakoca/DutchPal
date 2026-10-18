@@ -32,14 +32,17 @@ def _jsonb_as_json(type_, compiler, **kw):
 
 
 def seed(db):
-    """Two synthetic books; rows are added out of order to check the API sorts them."""
+    """Two synthetic books; rows are added out of order to check the API sorts them.
+    Only chapter 1 of test-book has a category (chapter 2 was imported before categories existed)."""
     full = Chapter(
         book_id="test-book",
         book_title="Test Book",
         book_cefr="A1",
+        book_category="learning",
         number=1,
         title="Hallo",
         schema_version=1,
+        duration_minutes=45,
         book_page_first=10,
         book_page_last=12,
         goals=["groeten"],
@@ -136,8 +139,8 @@ def test_books(client):
     r = client.get("/content/books")
     assert r.status_code == 200
     assert r.json() == [
-        {"book_id": "other-book", "title": "Other Book", "cefr": None, "chapter_count": 1},
-        {"book_id": "test-book", "title": "Test Book", "cefr": "A1", "chapter_count": 2},
+        {"book_id": "other-book", "title": "Other Book", "cefr": None, "category": None, "chapter_count": 1},
+        {"book_id": "test-book", "title": "Test Book", "cefr": "A1", "category": "learning", "chapter_count": 2},
     ]
 
 
@@ -145,8 +148,15 @@ def test_chapters_ordered_by_number(client):
     r = client.get("/content/books/test-book/chapters")
     assert r.status_code == 200
     assert r.json() == [
-        {"id": client.chapter_id, "number": 1, "title": "Hallo", "goals": ["groeten"], "has_exercises": True},
-        {"id": r.json()[1]["id"], "number": 2, "title": "Dag", "goals": [], "has_exercises": False},
+        {
+            "id": client.chapter_id,
+            "number": 1,
+            "title": "Hallo",
+            "goals": ["groeten"],
+            "duration_minutes": 45,
+            "has_exercises": True,
+        },
+        {"id": r.json()[1]["id"], "number": 2, "title": "Dag", "goals": [], "duration_minutes": None, "has_exercises": False},
     ]
 
 
@@ -160,7 +170,8 @@ def test_chapter(client):
     r = client.get(f"/content/chapters/{client.chapter_id}")
     assert r.status_code == 200
     ch = r.json()
-    assert {k: ch[k] for k in ("id", "book_id", "book_title", "number", "title", "goals", "note", "book_pages")} == {
+    keys = ("id", "book_id", "book_title", "number", "title", "goals", "note", "duration_minutes", "book_pages")
+    assert {k: ch[k] for k in keys} == {
         "id": client.chapter_id,
         "book_id": "test-book",
         "book_title": "Test Book",
@@ -168,6 +179,7 @@ def test_chapter(client):
         "title": "Hallo",
         "goals": ["groeten"],
         "note": None,
+        "duration_minutes": 45,
         "book_pages": [10, 12],
     }
     assert ch["dialogues"] == [

@@ -20,15 +20,18 @@ def list_books(db: Session = Depends(get_db)):
     """
     Books that have imported chapters, with their chapter count.
     """
+    # max() so a book whose chapters were imported before it had a category still lists once.
     rows = (
-        db.query(Chapter.book_id, Chapter.book_title, Chapter.book_cefr, func.count(Chapter.id))
+        db.query(
+            Chapter.book_id, Chapter.book_title, Chapter.book_cefr, func.max(Chapter.book_category), func.count(Chapter.id)
+        )
         .group_by(Chapter.book_id, Chapter.book_title, Chapter.book_cefr)
         .order_by(Chapter.book_id)
         .all()
     )
     return [
-        {"book_id": book_id, "title": title, "cefr": cefr, "chapter_count": count}
-        for book_id, title, cefr, count in rows
+        {"book_id": book_id, "title": title, "cefr": cefr, "category": category, "chapter_count": count}
+        for book_id, title, cefr, category, count in rows
     ]
 
 
@@ -39,7 +42,14 @@ def list_chapters(book_id: str, db: Session = Depends(get_db)):
     """
     has_exercises = exists().where(Exercise.chapter_id == Chapter.id)
     rows = (
-        db.query(Chapter.id, Chapter.number, Chapter.title, Chapter.goals, has_exercises.label("has_exercises"))
+        db.query(
+            Chapter.id,
+            Chapter.number,
+            Chapter.title,
+            Chapter.goals,
+            Chapter.duration_minutes,
+            has_exercises.label("has_exercises"),
+        )
         .filter(Chapter.book_id == book_id)
         .order_by(Chapter.number)
         .all()
@@ -52,6 +62,7 @@ def list_chapters(book_id: str, db: Session = Depends(get_db)):
             "number": r.number,
             "title": r.title,
             "goals": r.goals,
+            "duration_minutes": r.duration_minutes,
             "has_exercises": bool(r.has_exercises),
         }
         for r in rows
@@ -91,6 +102,7 @@ def get_chapter(chapter_id: int, db: Session = Depends(get_db)):
         "title": ch.title,
         "goals": ch.goals,
         "note": ch.note,
+        "duration_minutes": ch.duration_minutes,
         "book_pages": (
             [ch.book_page_first, ch.book_page_last] if ch.book_page_first is not None else None
         ),

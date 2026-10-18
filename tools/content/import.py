@@ -33,6 +33,8 @@ ADDED_COLUMNS = [
     "ALTER TABLE chapters ADD COLUMN IF NOT EXISTS note TEXT",
     "ALTER TABLE dialogues ADD COLUMN IF NOT EXISTS new_words JSONB NOT NULL DEFAULT '[]'",
     "ALTER TABLE vocab_entries ADD COLUMN IF NOT EXISTS generated BOOLEAN",
+    "ALTER TABLE chapters ADD COLUMN IF NOT EXISTS book_category VARCHAR",
+    "ALTER TABLE chapters ADD COLUMN IF NOT EXISTS duration_minutes INTEGER",
 ]
 EXERCISE_FIELDS = {"id", "label", "book_page", "type", "instruction", "answers_source"}
 
@@ -64,6 +66,7 @@ def import_chapter(conn, data: dict) -> int:
         "book_id": book["id"],
         "book_title": book["title"],
         "book_cefr": book.get("cefr"),
+        "book_category": book.get("category"),
         "number": ch["number"],
         "title": ch["title"],
         "schema_version": data["schema_version"],
@@ -76,6 +79,7 @@ def import_chapter(conn, data: dict) -> int:
         "reflection": data.get("reflection"),
         "source_images": ch.get("source_images", []),
         "note": ch.get("note"),
+        "duration_minutes": ch.get("duration_minutes"),
     }
     stmt = insert(Chapter).values(chapter_row)
     stmt = stmt.on_conflict_do_update(

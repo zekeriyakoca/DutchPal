@@ -30,6 +30,7 @@ class Chapter(Base):
     book_id = Column(String, nullable=False)  # slug, e.g. "nl-in-gang"
     book_title = Column(String, nullable=False)
     book_cefr = Column(String, nullable=True)
+    book_category = Column(String, nullable=True)  # learning / reading / grammar / exams
     number = Column(Integer, nullable=False)
     title = Column(String, nullable=False)
     schema_version = Column(Integer, nullable=False)
@@ -42,6 +43,7 @@ class Chapter(Base):
     reflection = Column(JSONB, nullable=True)
     source_images = Column(JSONB, nullable=False, default=list)  # books delivered as screenshots
     note = Column(Text, nullable=True)
+    duration_minutes = Column(Integer, nullable=True)  # official exam time
     imported_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     dialogues = relationship("Dialogue", back_populates="chapter", cascade="all, delete-orphan")

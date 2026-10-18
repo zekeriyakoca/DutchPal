@@ -64,9 +64,9 @@ are a contract with the UI; change both together.
 
 | Endpoint | Response |
 | --- | --- |
-| `GET /content/books` | `[{book_id, title, cefr, chapter_count}]` |
-| `GET /content/books/{book_id}/chapters` | `[{id, number, title, goals [], has_exercises}]`, ordered by `number` |
-| `GET /content/chapters/{id}` | `{id, book_id, book_title, number, title, goals, note, book_pages [first,last] \| null, dialogues, vocabulary, grammar, exercises, culture, reflection}` |
+| `GET /content/books` | `[{book_id, title, cefr, category, chapter_count}]`; `category` is null until the book's JSON sets it |
+| `GET /content/books/{book_id}/chapters` | `[{id, number, title, goals [], duration_minutes, has_exercises}]`, ordered by `number` |
+| `GET /content/chapters/{id}` | `{id, book_id, book_title, number, title, goals, note, duration_minutes, book_pages [first,last] \| null, dialogues, vocabulary, grammar, exercises, culture, reflection}` |
 
 - `dialogues[]`: `{id, title, audio_tracks, lines [{speaker, text, stage?, narration?}], new_words []}`.
 - `vocabulary[]`: one entry per word list, `{list, book_page, generated, items [{nl, lemma, article, form, en}]}`;
@@ -81,12 +81,13 @@ Tests: `python -m pytest tests/test_content_api.py` (synthetic data, in-memory S
 
 ## Schema (v1)
 
-Top level: `schema_version`, `book {id, title, cefr}`, `chapter`, `dialogues`, `vocabulary`,
+Top level: `schema_version`, `book {id, title, cefr, category?}`, `chapter`, `dialogues`, `vocabulary`,
 `grammar`, `exercises`, `culture`, `reflection`. Look at `ch01.json` for a full example.
 
 | Field | Shape |
 | --- | --- |
-| `chapter` | `number`, `title`, `pdf_pages [first,last]`, `book_pages [first,last]`, `goals []` (from the cover box) |
+| `book` | `id` (slug), `title`, `cefr`, optional `category`: `learning` (textbooks), `reading` (story books), `grammar`, `exams` (sample exams; shown on the Exams page instead of Study Book). Stored per chapter in `chapters.book_category`; set it in every chapter file of the book |
+| `chapter` | `number`, `title`, `pdf_pages [first,last]`, `book_pages [first,last]`, `goals []` (from the cover box), optional `duration_minutes` (the official exam time of an exam chapter, a positive integer; the Exams page counts down from it) |
 | `dialogues[]` | `id`, `title`, `audio_tracks []` (CD track labels like `1-1`), `book_page`, `lines [{speaker, text}]`; stage directions like `(een poosje later)` are `{speaker: null, text, stage: true}` |
 | `vocabulary[]` | one entry per printed list: `list`, `book_page`, `items [{nl, lemma, article?, form?, en}]`. `nl` = as printed, `lemma` = dictionary form, `form` = inflected form when the list shows `form (lemma)`. Lists not printed in the book carry `generated: true` (see below) |
 | `grammar[]` | `id`, `title`, `book_page`, plus whatever fits: `pairs [{q,a}]`, `table {columns, rows}`, `examples []`, `highlight []` (words the book prints in colour), `phrases []`, `conjugation {verbs, rows [{pronoun, forms}]}`, `numbers {}`, `times {}`, `months []`, `seasons []`, `scale` / `responses [{polarity, text}]`, `note` |

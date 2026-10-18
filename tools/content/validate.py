@@ -20,6 +20,7 @@ EXERCISE_TYPES = {
 }
 QA_TYPES = {"comprehension_questions", "puzzle", "reading"}
 ARTICLES = {"de", "het"}
+BOOK_CATEGORIES = {"learning", "reading", "grammar", "exams"}
 # Media paths in exercises are relative to the media root served at /media (see routes/media.py).
 MEDIA_DIR = Path(os.getenv("MEDIA_DIR", "media"))
 
@@ -78,6 +79,10 @@ def validate(path: Path) -> tuple[list[str], list[str], dict]:
     data = json.loads(path.read_text(encoding="utf-8"))
     ch = data["chapter"]
 
+    if "category" in data["book"] and data["book"]["category"] not in BOOK_CATEGORIES:
+        errors.append(f"book category must be one of {sorted(BOOK_CATEGORIES)}")
+    if "duration_minutes" in ch and not (type(ch["duration_minutes"]) is int and ch["duration_minutes"] > 0):
+        errors.append("chapter duration_minutes must be a positive integer")
     if ch.get("book_pages"):
         first, last = ch["book_pages"]
         missing = sorted(set(range(first, last + 1)) - book_pages_found(data))
