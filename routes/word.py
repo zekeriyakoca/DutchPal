@@ -15,7 +15,8 @@ class WordLookupRequest(BaseModel):
 @router.post("/word/lookup", response_model=WordLookup)
 async def word_lookup(req: WordLookupRequest, db: Session = Depends(get_db)):
     """
-    A word from the book word lists and the vocabulary table; the LLM only fills the gaps.
+    A word from the book word lists, the vocabulary table and the Azure Translator dictionary;
+    the LLM only fills the gaps.
     """
     try:
         return await lookup_word(db, req.word)

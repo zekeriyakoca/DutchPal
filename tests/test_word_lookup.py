@@ -44,7 +44,7 @@ def test_candidates_strip_article_and_punctuation():
 
 def test_book_values_win_over_llm():
     book = [book_entry("kat", "cat", "de"), book_entry("kat", "Cat"), book_entry("kat", "puss")]
-    result = merge("katten", book, None, LLM.model_copy(update={"article": "het"}))
+    result = merge("katten", book, None, None, LLM.model_copy(update={"article": "het"}))
     assert result.source == "book"
     assert result.lemma == "kat"
     assert result.article == "de"
@@ -54,13 +54,13 @@ def test_book_values_win_over_llm():
 
 
 def test_book_entry_without_article_gets_none_from_llm():
-    result = merge("lopen", [book_entry("lopen", "to walk")], None, LLM)
+    result = merge("lopen", [book_entry("lopen", "to walk")], None, None, LLM)
     assert result.article is None
 
 
 def test_db_values_win_and_llm_fills_only_missing_forms():
     row = vocab_row("wonen", pos="verb", cefr_level="A1", present="woon/woont/wonen", v3="gewoond")
-    result = merge("woont", [], row, LLM)
+    result = merge("woont", [], row, None, LLM)
     assert result.source == "db"
     assert (result.lemma, result.pos, result.cefr_level) == ("wonen", "VERB", "A1")
     assert result.forms.model_dump() == {"present": "woon/woont/wonen", "v2": "llm-v2", "v3": "gewoond"}
@@ -68,14 +68,25 @@ def test_db_values_win_and_llm_fills_only_missing_forms():
 
 
 def test_llm_forms_dropped_for_non_verbs():
-    assert merge("x", [], vocab_row("x", pos="NOUN"), LLM).forms.model_dump() == {"present": None, "v2": None, "v3": None}
+    assert merge("x", [], vocab_row("x", pos="NOUN"), None, LLM).forms.model_dump() == {"present": None, "v2": None, "v3": None}
 
 
 def test_llm_only():
-    result = merge("fiets", [], None, LLM.model_copy(update={"article": "Een", "lemma": None}))
+    result = merge("fiets", [], None, None, LLM.model_copy(update={"article": "Een", "lemma": None}))
     assert result.source == "llm"
     assert result.lemma == "fiets"
     assert result.article is None  # not de/het
+
+
+def test_dictionary_fills_before_llm_and_book_still_wins():
+    dictionary = LlmWord(translations=["bike", "bicycle"], pos="NOUN", examples=["Ik fiets."])
+    result = merge("fiets", [], None, dictionary, LLM)
+    assert result.source == "dictionary"
+    assert (result.translations, result.pos, result.examples) == (["bike", "bicycle"], "NOUN", ["Ik fiets."])
+    assert (result.lemma, result.article) == ("llm-lemma", "de")  # the dictionary has neither
+
+    result = merge("katten", [book_entry("kat", "cat", "de")], None, dictionary, LLM)
+    assert (result.source, result.translations, result.pos) == ("book", ["cat"], "NOUN")
 
 
 def test_lookup_returns_stored_data_when_llm_fails(monkeypatch):
@@ -85,6 +96,7 @@ def test_lookup_returns_stored_data_when_llm_fails(monkeypatch):
     monkeypatch.setattr(word_lookup, "find_vocabulary_row", lambda db, words: None)
     monkeypatch.setattr(word_lookup, "find_book_entries", lambda db, words: [book_entry("kat", "cat", "de")])
     monkeypatch.setattr(word_lookup, "ask_llm_json", failing)
+    monkeypatch.setattr(word_lookup, "dictionary_lookup", lambda term: asyncio.sleep(0))
     result = asyncio.run(word_lookup.lookup_word(None, "kat"))
     assert (result.translations, result.examples, result.source) == (["cat"], [], "book")
 

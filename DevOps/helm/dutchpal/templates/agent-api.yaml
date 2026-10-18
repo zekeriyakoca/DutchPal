@@ -38,7 +38,7 @@ spec:
             - configMapRef:
                 name: dutchpal-config
             # Every key of the secret becomes an env var, incl. NOTION_SECRET, NOTION_NOUN_DB_ID,
-            # NOTION_VERB_DB_ID, GOOGLE_CLIENT_ID, SESSION_SECRET, SETTINGS_ENCRYPTION_KEY and AZURE_SPEECH_*.
+            # NOTION_VERB_DB_ID, GOOGLE_CLIENT_ID, SESSION_SECRET, SETTINGS_ENCRYPTION_KEY, AZURE_SPEECH_* and AZURE_TRANSLATOR_*.
             - secretRef:
                 name: {{ .Values.secrets.existingSecret }}
           env:

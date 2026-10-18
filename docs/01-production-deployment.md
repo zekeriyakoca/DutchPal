@@ -143,6 +143,7 @@ All values live in `DevOps/k3s/secrets.env` (git-ignored, copy from `secrets.env
 | `SESSION_SECRET` | for sign-in | signs the session cookie; changing it signs everyone out |
 | `SETTINGS_ENCRYPTION_KEY` | for own Notion | Fernet key that encrypts users' Notion secrets; losing it makes saved secrets unreadable |
 | `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION` | for Azure voice | text-to-speech at `/tts`; without them the UI uses the browser voice |
+| `AZURE_TRANSLATOR_KEY`, `AZURE_TRANSLATOR_REGION` | for the dictionary | English meanings and examples in `/word/lookup`; without them the LLM fills them as before |
 
 Without the three sign-in values the app works as before: no one can sign in and every Notion
 save goes to the default Notion.
@@ -184,6 +185,26 @@ Settings → General "Use advanced paid voice service" is on; otherwise, or when
 
 F0 returns 429 when the monthly quota is used up; the API passes that on as 503 and the UI falls
 back to the browser voice.
+
+### Translator dictionary
+
+`POST /dutchpal-api/word/lookup` ([services/word_lookup.py](../services/word_lookup.py)) asks the
+Azure Translator dictionary (REST, `dictionary/lookup` and `dictionary/examples`, nl → en) after the
+book word lists and the `vocabulary` table. It fills only empty fields: up to 4 English meanings, the
+part of speech and up to 3 Dutch example sentences. The LLM then fills what is still empty (lemma,
+article, verb forms) and is skipped when nothing is. `source` is `dictionary` when only the
+dictionary knew the word.
+
+1. Azure portal → Create a resource → **Translator** (Azure AI services). Pricing tier **Free F0**
+   (2M characters per month), region e.g. West Europe.
+2. Resource → Keys and Endpoint: copy **Key 1** and the **Location/Region** (e.g. `westeurope`).
+3. Put them in `DevOps/k3s/secrets.env` (and `.env` for local runs):
+   `AZURE_TRANSLATOR_KEY=…`, `AZURE_TRANSLATOR_REGION=westeurope`, then redeploy.
+4. Check: on the Translation page `fiets` shows "Dictionary + AI" or, for a book word, the
+   dictionary's examples.
+
+Without the key, on a 429 (quota used up), a timeout (3 s) or any other error the lookup skips the
+dictionary, logs `Translator dictionary for '…' skipped`, and works as before.
 
 ## Deploy commands
 

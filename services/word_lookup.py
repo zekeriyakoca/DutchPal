@@ -1,13 +1,16 @@
 """Word lookup grounded in our own data.
 
 Order: the textbook word lists (`vocab_entries`), then the old `vocabulary` table (CEFR level,
-part of speech, verb forms), then the LLM for whatever both are missing. Stored values always
-win; the LLM only fills empty fields.
+part of speech, verb forms), then the Azure Translator dictionary (English meanings, part of
+speech, example sentences), then the LLM for whatever is still missing. Stored values always
+win; the dictionary and the LLM only fill empty fields, and the LLM is skipped when nothing is.
 """
 
 import json
+import os
 from typing import Any, Literal, Optional
 
+import httpx
 from pydantic import BaseModel
 from sqlalchemy import func, or_, text as sql_text
 from tools.chat_with_ai import chat_fast
@@ -15,6 +18,9 @@ from tools.content.models import VocabEntry
 from utils.llm_json import ask_llm_json
 
 ARTICLES = ("de", "het")
+TRANSLATOR_URL = "https://api.cognitive.microsofttranslator.com/dictionary"
+# Translator part-of-speech tags mapped to the ones the LLM uses; the rest becomes OTHER.
+DICTIONARY_POS = {"NOUN": "NOUN", "VERB": "VERB", "MODAL": "VERB", "ADJ": "ADJ", "ADV": "ADV"}
 
 
 class Forms(BaseModel):
@@ -32,11 +38,11 @@ class WordLookup(BaseModel):
     pos: Optional[str] = None
     forms: Forms = Forms()
     examples: list[str] = []
-    source: Literal["book", "db", "llm"]  # where the entry was found; examples are always generated
+    source: Literal["book", "db", "dictionary", "llm"]  # where the entry was found
 
 
 class LlmWord(BaseModel):
-    """The JSON we ask the LLM for. Everything is optional; unknown keys are ignored."""
+    """The JSON we ask the LLM for, also the dictionary's answer. Everything is optional; unknown keys are ignored."""
 
     lemma: Optional[str] = None
     article: Optional[str] = None
@@ -99,8 +105,8 @@ def _unique(values) -> list[str]:
     return result
 
 
-def merge(word: str, book: list, row: Any, llm: Optional[LlmWord]) -> WordLookup:
-    """Book first, then the vocabulary row, then the LLM, which only fills what is still empty."""
+def merge(word: str, book: list, row: Any, dictionary: Optional[LlmWord], llm: Optional[LlmWord]) -> WordLookup:
+    """Book first, then the vocabulary row, then the dictionary and the LLM, which only fill what is still empty."""
     lemma = (book[0].lemma if book else None) or (row and (row.infinitive or row.lemma))
     article = next((e.article for e in book if e.article), None)
     translations = _unique(e.en for e in book)
@@ -108,16 +114,18 @@ def merge(word: str, book: list, row: Any, llm: Optional[LlmWord]) -> WordLookup
     forms = Forms(present=row.present_form, v2=row.v2_form, v3=row.v3_form) if row else Forms()
     examples = []
 
-    if llm:
-        lemma = lemma or llm.lemma
+    for fill in (dictionary, llm):
+        if not fill:
+            continue
+        lemma = lemma or fill.lemma
         # The book prints an article for every noun, so a book entry without one has none.
-        if not book and llm.article and llm.article.lower() in ARTICLES:
-            article = llm.article.lower()
-        translations = translations or _unique(llm.translations)
-        pos = pos or (llm.pos.upper() if llm.pos else None)
+        if not book and fill.article and fill.article.lower() in ARTICLES:
+            article = fill.article.lower()
+        translations = translations or _unique(fill.translations)
+        pos = pos or (fill.pos.upper() if fill.pos else None)
         if pos == "VERB":
-            forms = Forms(**{k: getattr(forms, k) or getattr(llm.forms, k) for k in Forms.model_fields})
-        examples = _unique(llm.examples)
+            forms = Forms(**{k: getattr(forms, k) or getattr(fill.forms, k) for k in Forms.model_fields})
+        examples = examples or _unique(fill.examples)
 
     return WordLookup(
         word=word,
@@ -128,7 +136,68 @@ def merge(word: str, book: list, row: Any, llm: Optional[LlmWord]) -> WordLookup
         pos=pos,
         forms=forms,
         examples=examples,
-        source="book" if book else "db" if row else "llm",
+        source="book" if book else "db" if row else "dictionary" if dictionary else "llm",
+    )
+
+
+async def dictionary_lookup(term: str) -> Optional[LlmWord]:
+    """
+    English meanings, part of speech and Dutch example sentences from the Azure Translator
+    dictionary (REST, no SDK). None without AZURE_TRANSLATOR_KEY, when the dictionary does not
+    know the word, or on any error, incl. 429 when the F0 quota (2M characters a month) is used up.
+    """
+    key, region = os.getenv("AZURE_TRANSLATOR_KEY"), os.getenv("AZURE_TRANSLATOR_REGION")
+    if not key:
+        return None
+    headers = {"Ocp-Apim-Subscription-Key": key}
+    if region:
+        headers["Ocp-Apim-Subscription-Region"] = region
+
+    found = None
+    try:
+        # A short timeout: the lookup must not get slower than the LLM alone.
+        async with httpx.AsyncClient(
+            timeout=3, headers=headers, params={"api-version": "3.0", "from": "nl", "to": "en"}
+        ) as client:
+            response = await client.post(f"{TRANSLATOR_URL}/lookup", json=[{"Text": term}])
+            response.raise_for_status()
+            entry = response.json()[0]
+            # Sorted by confidence; the long tail is rare or odd meanings.
+            meanings = [t for t in entry["translations"] if t["confidence"] >= 0.05][:4]
+            if not meanings:
+                return None
+            found = LlmWord(
+                translations=[t["displayTarget"] for t in meanings],
+                pos=DICTIONARY_POS.get(meanings[0]["posTag"], "OTHER"),
+            )
+
+            response = await client.post(
+                f"{TRANSLATOR_URL}/examples",
+                json=[{"Text": entry["normalizedSource"], "Translation": t["normalizedTarget"]} for t in meanings[:2]],
+            )
+            response.raise_for_status()
+            sentences = [
+                " ".join((e["sourcePrefix"] + e["sourceTerm"] + e["sourceSuffix"]).split())
+                for item in response.json()
+                for e in item["examples"]
+            ]
+            found.examples = [s for s in sentences if len(s) <= 120][:3]
+    except Exception as exc:
+        # Meanings found before a failed examples call are still worth returning.
+        print(f"Translator dictionary for {term!r} skipped: {exc!r}")
+    return found
+
+
+def needs_llm(stored: WordLookup, book: list) -> bool:
+    """True when a field the LLM fills is still empty."""
+    if stored.source in ("dictionary", "llm"):
+        return True  # no stored lemma ("noemde" -> "noemen") nor article
+    return (
+        not stored.translations
+        or not stored.examples
+        or not stored.pos
+        or (stored.pos == "NOUN" and not book and not stored.article)
+        or (stored.pos == "VERB" and not all(stored.forms.model_dump().values()))
     )
 
 
@@ -137,6 +206,8 @@ def build_lookup_prompt(word: str, stored: WordLookup) -> str:
     if stored.source != "llm":
         dumped = stored.model_dump(exclude={"word", "source", "examples"}, exclude_none=True)
         known = {k: v for k, v in dumped.items() if v}
+        if stored.source == "dictionary":
+            known.pop("lemma", None)  # only the typed word; the dictionary gives no lemma
     return f"""
     You are a Dutch dictionary. Describe the Dutch word: "{word}".
     {f"Known facts (keep to them): {json.dumps(known, ensure_ascii=False)}" if known else ""}
@@ -161,7 +232,12 @@ async def lookup_word(db: Any, word: str) -> WordLookup:
     if row:
         words += _unique([(row.lemma or "").lower(), (row.infinitive or "").lower()])
     book = find_book_entries(db, words)
-    stored = merge(word, book, row, None)
+    # The stored lemma finds more ("noemde" -> "noemen"); otherwise the word without its article.
+    lemma = merge(word, book, row, None, None).lemma if book or row else words[-1]
+    dictionary = await dictionary_lookup(lemma)
+    stored = merge(word, book, row, dictionary, None)
+    if not needs_llm(stored, book):
+        return stored
 
     try:
         llm = await ask_llm_json(chat_fast, build_lookup_prompt(word, stored), LlmWord)
@@ -172,4 +248,4 @@ async def lookup_word(db: Any, word: str) -> WordLookup:
         print(f"Word lookup for {word!r}: LLM fill failed, returning stored data only: {exc}")
         return stored
 
-    return merge(word, book, row, llm)
+    return merge(word, book, row, dictionary, llm)
