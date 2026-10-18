@@ -38,7 +38,7 @@ spec:
             - configMapRef:
                 name: dutchpal-config
             # Every key of the secret becomes an env var, incl. NOTION_SECRET, NOTION_NOUN_DB_ID,
-            # NOTION_VERB_DB_ID, GOOGLE_CLIENT_ID, SESSION_SECRET and SETTINGS_ENCRYPTION_KEY.
+            # NOTION_VERB_DB_ID, GOOGLE_CLIENT_ID, SESSION_SECRET, SETTINGS_ENCRYPTION_KEY and AZURE_SPEECH_*.
             - secretRef:
                 name: {{ .Values.secrets.existingSecret }}
           env:
@@ -54,7 +54,6 @@ spec:
           volumeMounts:
             - name: media
               mountPath: {{ .Values.media.mountPath }}
-              readOnly: true
           {{- end }}
           resources:
             {{- toYaml .Values.agentApi.resources | nindent 12 }}
@@ -83,7 +82,6 @@ spec:
         - name: media
           persistentVolumeClaim:
             claimName: dutchpal-media
-            readOnly: true
       {{- end }}
 ---
 apiVersion: v1

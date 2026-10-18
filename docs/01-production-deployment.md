@@ -60,12 +60,14 @@ There is one DutchPal `IngressRoute`. There is no second Traefik.
 
 Exam audio, video and pictures (see "Exams with media" in [06-content-extraction.md](06-content-extraction.md))
 are not in any image. They live on the PVC `dutchpal-media` (`local-path`, 2Gi, `helm.sh/resource-policy: keep`),
-mounted read-only at `/media` in the agent API with `MEDIA_DIR=/media`, and are served at
+mounted at `/media` in the agent API with `MEDIA_DIR=/media`, and are served at
 `https://dutchpal.lontray.art/dutchpal-api/media/<path>` (Range requests work, so players can seek).
 Values: `media.enabled`, `media.storageClass`, `media.storage`, `media.mountPath`.
+The agent API also writes the text-to-speech cache to `/media/tts` (see [Text-to-speech](#text-to-speech)),
+so the volume is mounted writable; the app writes nowhere else on it.
 Sizes: `staatsexamen-b1` ~300 MB, `staatsexamen-b2` ~325 MB, `inburgering-a2` ~180 MB (~800 MB together).
 
-The agent API mounts the volume read-only, so copy files in through a short-lived pod that mounts it writable
+Copy files in through a short-lived pod that mounts the volume
 (run from a machine with kubectl access to the cluster, in the main checkout that has `media/`):
 
 ```bash
@@ -140,6 +142,7 @@ All values live in `DevOps/k3s/secrets.env` (git-ignored, copy from `secrets.env
 | `GOOGLE_CLIENT_ID` | for sign-in | audience checked on Google ID tokens |
 | `SESSION_SECRET` | for sign-in | signs the session cookie; changing it signs everyone out |
 | `SETTINGS_ENCRYPTION_KEY` | for own Notion | Fernet key that encrypts users' Notion secrets; losing it makes saved secrets unreadable |
+| `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION` | for Azure voice | text-to-speech at `/tts`; without them the UI uses the browser voice |
 
 Without the three sign-in values the app works as before: no one can sign in and every Notion
 save goes to the default Notion.
@@ -160,6 +163,27 @@ save goes to the default Notion.
 
 The session is an httpOnly, Secure, SameSite=Lax cookie set by `/dutchpal-api/auth/google`. The
 UI and API share the origin in production, so no token is stored in the browser.
+
+### Text-to-speech
+
+`GET /dutchpal-api/tts?text=…` ([routes/tts.py](../routes/tts.py)) returns the Dutch text as MP3 from
+the Azure Speech REST API (voice `nl-NL-FennaNeural`), for signed-in users only. Text is trimmed,
+spaces collapsed, cut at 500 characters, and cached as `/media/tts/<sha256>.mp3` on `dutchpal-media`,
+so each text is paid for once. The UI uses it for 1–2 words always, and for longer text only when
+Settings → General "Use advanced paid voice service" is on; otherwise, or when `/tts` fails
+(no key, quota, network), it uses the browser's own voice (Web Speech API).
+
+1. Azure portal → Create a resource → **Speech** (Azure AI services). Pricing tier **Free F0**
+   (0.5M characters per month), region e.g. West Europe.
+2. Resource → Keys and Endpoint: copy **Key 1** and the **Location/Region** (e.g. `westeurope`).
+3. Put them in `DevOps/k3s/secrets.env` (and `.env` for local runs):
+   `AZURE_SPEECH_KEY=…`, `AZURE_SPEECH_REGION=westeurope`, then redeploy.
+4. Check: signed in, `https://dutchpal.lontray.art/dutchpal-api/tts?text=hallo` plays; the file
+   appears in `/media/tts`. Without the key the endpoint answers 503
+   `Text-to-speech is not configured on this server`.
+
+F0 returns 429 when the monthly quota is used up; the API passes that on as 503 and the UI falls
+back to the browser voice.
 
 ## Deploy commands
 

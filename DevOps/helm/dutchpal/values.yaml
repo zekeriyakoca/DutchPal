@@ -24,7 +24,7 @@ postgres:
     requests: { cpu: 100m, memory: 256Mi }
     limits: { cpu: 1000m, memory: 1Gi }
 
-# Exam media (audio/video/pictures) on its own volume, mounted read-only in the agent API.
+# Exam media (audio/video/pictures) and the text-to-speech cache (tts/) on their own volume.
 media:
   enabled: true
   storageClass: local-path
