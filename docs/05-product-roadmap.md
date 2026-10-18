@@ -56,7 +56,11 @@ Exam media (~800 MB) on PVC `dutchpal-media`, served at `/dutchpal-api/media`.
 ## Next
 
 - [ ] Daily practice session (due words + one exercise + one short text).
-- [ ] Listening: TTS for dialogues and stories (e.g. Piper Dutch voices).
+- [ ] Listening: 🔊 on words, dialogue lines and the text selection. Words always use Azure Speech
+      (`/tts`, `nl-NL-FennaNeural`, cached on `dutchpal-media` by text hash); longer text uses the
+      browser voice unless Settings → General "Use advanced paid voice service" is on. In review;
+      needs `AZURE_SPEECH_KEY` (F0 tier) before deploy, see
+      [01-production-deployment.md](01-production-deployment.md#text-to-speech).
 - [ ] "Ask the chapter": questions about the open chapter, answers with citations.
 - [ ] Admin page to review and fix generated content.
 - [ ] Ops: remove the unused .NET core API from the deploy.

@@ -57,6 +57,9 @@ source "$SECRETS_FILE"
 : "${GOOGLE_CLIENT_ID:=}"
 : "${SESSION_SECRET:=}"
 : "${SETTINGS_ENCRYPTION_KEY:=}"
+# Text-to-speech is optional: without these /tts answers 503 and the UI uses the browser voice.
+: "${AZURE_SPEECH_KEY:=}"
+: "${AZURE_SPEECH_REGION:=}"
 
 echo "Deploying DutchPal to $SSH_TARGET"
 echo "  namespace: $NAMESPACE"
@@ -95,6 +98,8 @@ ssh -i "$KEY" -o ServerAliveInterval=30 -o ServerAliveCountMax=20 "$SSH_TARGET" 
   GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
   SESSION_SECRET="$SESSION_SECRET" \
   SETTINGS_ENCRYPTION_KEY="$SETTINGS_ENCRYPTION_KEY" \
+  AZURE_SPEECH_KEY="$AZURE_SPEECH_KEY" \
+  AZURE_SPEECH_REGION="$AZURE_SPEECH_REGION" \
   'bash -s' << 'REMOTE'
 set -euo pipefail
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
@@ -130,6 +135,8 @@ kubectl -n "$NAMESPACE" create secret generic dutchpal-secrets \
   --from-literal=GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
   --from-literal=SESSION_SECRET="$SESSION_SECRET" \
   --from-literal=SETTINGS_ENCRYPTION_KEY="$SETTINGS_ENCRYPTION_KEY" \
+  --from-literal=AZURE_SPEECH_KEY="$AZURE_SPEECH_KEY" \
+  --from-literal=AZURE_SPEECH_REGION="$AZURE_SPEECH_REGION" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 echo "Running Helm lint..."

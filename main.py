@@ -17,6 +17,7 @@ from routes import (
     settings,
     notion,
     media,
+    tts,
     writing,
 )
 from services import users
@@ -73,4 +74,5 @@ app.include_router(auth.router)
 app.include_router(settings.router)
 app.include_router(notion.router)
 app.include_router(media.router)
+app.include_router(tts.router)
 app.include_router(writing.router)
