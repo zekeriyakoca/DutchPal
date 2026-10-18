@@ -142,7 +142,7 @@ def merge(word: str, book: list, row: Any, dictionary: Optional[LlmWord], llm: O
 
 async def dictionary_lookup(term: str) -> Optional[LlmWord]:
     """
-    English meanings, part of speech and Dutch example sentences from the Azure Translator
+    English meanings and part of speech from the Azure Translator
     dictionary (REST, no SDK). None without AZURE_TRANSLATOR_KEY, when the dictionary does not
     know the word, or on any error, incl. 429 when the F0 quota (2M characters a month) is used up.
     """
@@ -153,7 +153,6 @@ async def dictionary_lookup(term: str) -> Optional[LlmWord]:
     if region:
         headers["Ocp-Apim-Subscription-Region"] = region
 
-    found = None
     try:
         # A short timeout: the lookup must not get slower than the LLM alone.
         async with httpx.AsyncClient(
@@ -166,26 +165,15 @@ async def dictionary_lookup(term: str) -> Optional[LlmWord]:
             meanings = [t for t in entry["translations"] if t["confidence"] >= 0.05][:4]
             if not meanings:
                 return None
-            found = LlmWord(
+            # Only meanings: the nl→en examples endpoint returns English sentences on both sides,
+            # so Dutch examples still come from the LLM.
+            return LlmWord(
                 translations=[t["displayTarget"] for t in meanings],
                 pos=DICTIONARY_POS.get(meanings[0]["posTag"], "OTHER"),
             )
-
-            response = await client.post(
-                f"{TRANSLATOR_URL}/examples",
-                json=[{"Text": entry["normalizedSource"], "Translation": t["normalizedTarget"]} for t in meanings[:2]],
-            )
-            response.raise_for_status()
-            sentences = [
-                " ".join((e["sourcePrefix"] + e["sourceTerm"] + e["sourceSuffix"]).split())
-                for item in response.json()
-                for e in item["examples"]
-            ]
-            found.examples = [s for s in sentences if len(s) <= 120][:3]
     except Exception as exc:
-        # Meanings found before a failed examples call are still worth returning.
         print(f"Translator dictionary for {term!r} skipped: {exc!r}")
-    return found
+        return None
 
 
 def needs_llm(stored: WordLookup, book: list) -> bool:
