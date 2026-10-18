@@ -1,6 +1,6 @@
 # DutchPal product roadmap
 
-> Last updated: 2026-10-18
+> Last updated: 2026-10-18 (evening)
 > Goal: a high-quality, stable Dutch study tool built on the owner's own textbooks.
 > Live: https://dutchpal.lontray.art
 
@@ -37,8 +37,14 @@ Exam media (~800 MB) on PVC `dutchpal-media`, served at `/dutchpal-api/media`.
 - Vocab Game: words from the books, one-sentence examples, table + flashcards.
 - Practice: LLM quiz as validated JSON, interactive with score.
 - Chat: history in the session, Enter to send, loading and error states.
-- Translation: word lookup (book → vocabulary table → LLM fills only empty fields).
-- Text selection: translate / explain / save to Notion.
+- Translation: word lookup (book → vocabulary table → Azure Translator dictionary for meanings →
+  LLM fills only what is still empty, e.g. Dutch examples). Sentence translation is still the LLM.
+- Listening: 🔊 on words, dialogue lines, flashcards and the text selection, Azure Speech only
+  (`/tts`, signed-in users, cached on `dutchpal-media`). Words always; sentences with Settings →
+  General "Natural Dutch voice"; voice speed 0.5×–1.25×; top-right "Reading aloud" popup with stop.
+- Text selection: translate / explain / ask ChatGPT or Claude (Settings → General) / listen /
+  save to Notion.
+- Landing page at `/` (Chat at `/chat`), DutchPal favicon.
 - Google sign-in, Profile, Settings (Integrations → per-user Notion; default Notion otherwise).
 - Redesign, error modal, CI with pytest.
 
@@ -56,15 +62,7 @@ Exam media (~800 MB) on PVC `dutchpal-media`, served at `/dutchpal-api/media`.
 ## Next
 
 - [ ] Daily practice session (due words + one exercise + one short text).
-- [ ] Listening: 🔊 on words, dialogue lines and the text selection. Words always use Azure Speech
-      (`/tts`, `nl-NL-FennaNeural`, cached on `dutchpal-media` by text hash); longer text uses the
-      browser voice unless Settings → General "Use advanced paid voice service" is on. In review;
-      needs `AZURE_SPEECH_KEY` (F0 tier) before deploy, see
-      [01-production-deployment.md](01-production-deployment.md#text-to-speech).
-- [ ] Word lookup: English meanings, part of speech and examples from the Azure Translator
-      dictionary (free F0) before the LLM; the LLM only fills what is still empty. In review; needs
-      `AZURE_TRANSLATOR_KEY` before deploy, see
-      [01-production-deployment.md](01-production-deployment.md#translator-dictionary).
+- [ ] Sentence translation with Azure Translator (same F0 key) instead of the LLM.
 - [ ] "Ask the chapter": questions about the open chapter, answers with citations.
 - [ ] Admin page to review and fix generated content.
 - [ ] Ops: remove the unused .NET core API from the deploy.
