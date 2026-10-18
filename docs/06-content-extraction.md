@@ -161,3 +161,38 @@ each path segment. Formats: `.opus` (Ogg Opus), `.mp3`, `.webm` (video), `.png` 
 | `speaking` | `audio` (the opgave's track), `prompt` (booklet text), `images?`, `criteria []` (one string per aspect: name, then the score lines, e.g. `Inhoud\n0: …\n1: …`). Each deel starts with a `speaking` exercise for the instruction track with its example; it has no criteria |
 
 The beoordelingsmodellen print no model answers, so `model_answer` is not used.
+
+### `staatsexamen-b2`
+
+Staatsexamen Nt2 Programma II (B2), sample exams 2023–2025 (`repo-for-books/staatsexamen-b2/`), built exactly like
+`staatsexamen-b1` (same 12-chapter order, same payloads, `answers_source: "book"`, media in
+`media/staatsexamen-b2/<year>-<skill>/`). Builders: `content/staatsexamen-b2/_build/`. Differences from B1:
+Schrijven has 10 opdrachten (1–7 sentences, 8 a short text, 9–10 a longer text) and Spreken 13 opgaven in three
+delen (the third: two minutes after two minutes of preparation). Some Lezen questions refer to printed line numbers
+("r. 5", "regel 8 t/m 17"); those texts keep the booklet's every-5th-line number as a marker like `⁽¹⁰⁾` at the
+start of that printed line (other texts drop them). A `reading` text may have `images` (a graph the text refers to).
+
+### `inburgering-a2`
+
+The DUO inburgeringsexamen A2 practice exams: 15 chapters, Lezen 1–4, Luisteren 1–3, Schrijven 1–3, Spreken 1–3,
+KNM 1–2 (title `Luisteren 2`). Schrijven comes from the three PDFs; the others are the online practice exams on
+inburgeren.nl (Optimum player). For those, `repo-for-books/inburgering-a2/online/<exam>/package.zip` is the result
+package of an anonymous session that was started and handed in unanswered: it holds every item and the official key
+(`correctantwoord`) and, for Spreken, the correctietekst (spoken prompt of the video questions, the acceptance
+criterion and example answers); `media/` next to it holds the files the items reference. Builders:
+`content/inburgering-a2/_build/` (`online.py`, `schrijven.py`, `a2.py` converts the item HTML to the light Markdown).
+Media go to `media/inburgering-a2/<exam>/` (file name = media guid; several pictures that form one answer option are
+joined into one `.png`, several read-aloud fragments into one `.mp3`).
+
+| Chapters | Payload |
+| --- | --- |
+| Lezen (`reading`) | one exercise per text: `title` (the bold heading, else `Tekst n`), `text`, `images?`, `items`; `instruction` = the situation line. A question with picture options gets its own exercise with `option_images` (options `A`, `B`, …) |
+| Luisteren (`listening`) | one exercise per fragment: `audio` (the fragment; for video `audio` = `video` = the `.mp4`), `video?`, `images?`, `intro_audio` (the situation and instruction read aloud), `items`; per item optional `q_audio` and `option_audios` (the exam reads question and options aloud). Picture questions get their own exercise with `option_images`, sharing the fragment |
+| KNM (`reading`-shaped) | one exercise per question: `images` (the question picture), `option_images?`, `items` with one question (`q_audio`/`option_audios`); a situation sentence becomes `title` (the theme) + `text`, otherwise there is no title/text. The theme is in the `label` |
+| Spreken (`speaking`) | one exercise per question: `audio` (the read-aloud prompt; for video questions `audio` = `video`), `video?`, `prompt` (for video questions the spoken question from the correctietekst), `images?`, `criteria` (the general A2 Spreken beoordelingsmodel — adequaatheid 0–3 with the question's specific criterion, woordenschat, grammaticale correctheid, vloeiendheid, coherentie, uitspraak), `model_answer` (example answers, alternatives joined by ` / `), `max_seconds` |
+| Schrijven (`writing`) | as B1 (`situation`, `prompt` with `___`, `items` for forms, `images?`), plus `model_answer`. The PDFs print no beoordelingsmodel, so criteria and model answers are generated: `answers_source: "generated_needs_review"` |
+
+Multiple-choice keys are official (`answers_source: "book"`). Spreken questions whose correctietekst has no specific
+criterion (13 of 48) carry a generated criterion and example answers and are `generated_needs_review`. Option order is
+the item's own order; the online player shuffles it per session. Every chapter of both books has a generated word
+list (`"generated": true`, `_build/voc*.py`).

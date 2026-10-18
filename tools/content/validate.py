@@ -25,9 +25,13 @@ MEDIA_DIR = Path(os.getenv("MEDIA_DIR", "media"))
 
 
 def media_errors(ex: dict, warnings: list[str]) -> list[str]:
-    """Check audio/video/images/option_images paths: relative, no '..', and (warning) present locally."""
-    paths = [ex[k] for k in ("audio", "video") if k in ex]
+    """Check media paths (audio, video, intro_audio, images, option_images; per item q_audio and option_audios):
+    relative, no '..', and (warning) present locally."""
+    paths = [ex[k] for k in ("audio", "video", "intro_audio") if k in ex]
     paths += ex.get("images", []) + ex.get("option_images", [])
+    for item in ex.get("items", []) if isinstance(ex.get("items"), list) else []:
+        if isinstance(item, dict):
+            paths += ([item["q_audio"]] if "q_audio" in item else []) + [a for a in item.get("option_audios", []) if a]
     errors = []
     for p in paths:
         pure = PurePosixPath(p) if isinstance(p, str) else None
@@ -46,6 +50,9 @@ def mc_errors(ex: dict) -> list[str]:
             errors.append(f"{ex['id']} #{item.get('n')}: needs q, options and an answer from the options")
     if "option_images" in ex and any(len(ex["option_images"]) != len(i["options"]) for i in ex.get("items", [])):
         errors.append(f"{ex['id']}: option_images and options differ in length")
+    for item in ex.get("items", []):
+        if "option_audios" in item and len(item["option_audios"]) != len(item.get("options", [])):
+            errors.append(f"{ex['id']} #{item.get('n')}: option_audios and options differ in length")
     return errors
 
 
@@ -160,6 +167,8 @@ def validate(path: Path) -> tuple[list[str], list[str], dict]:
         if ex["type"] == "speaking":
             if not ex.get("audio") or not ex.get("prompt") or not isinstance(ex.get("criteria"), list):
                 errors.append(f"{ex['id']}: speaking needs audio, prompt and a criteria list")
+        if ex["type"] == "reading" and "option_images" in ex:
+            errors += mc_errors(ex)
         if ex["type"] == "reading" and "title" in ex and not ex.get("text"):
             errors.append(f"{ex['id']}: reading with a title needs text")
         errors += media_errors(ex, warnings)

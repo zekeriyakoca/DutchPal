@@ -63,6 +63,7 @@ are not in any image. They live on the PVC `dutchpal-media` (`local-path`, 2Gi, 
 mounted read-only at `/media` in the agent API with `MEDIA_DIR=/media`, and are served at
 `https://dutchpal.lontray.art/dutchpal-api/media/<path>` (Range requests work, so players can seek).
 Values: `media.enabled`, `media.storageClass`, `media.storage`, `media.mountPath`.
+Sizes: `staatsexamen-b1` ~300 MB, `staatsexamen-b2` ~325 MB, `inburgering-a2` ~180 MB (~800 MB together).
 
 The agent API mounts the volume read-only, so copy files in through a short-lived pod that mounts it writable
 (run from a machine with kubectl access to the cluster, in the main checkout that has `media/`):
