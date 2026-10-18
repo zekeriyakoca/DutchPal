@@ -11,7 +11,7 @@ import os
 from typing import Any, Literal, Optional
 
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import func, or_, text as sql_text
 from tools.chat_with_ai import chat_fast
 from tools.content.models import VocabEntry
@@ -50,6 +50,17 @@ class LlmWord(BaseModel):
     pos: Optional[str] = None
     forms: Forms = Forms()
     examples: list[str] = []
+
+    @field_validator("forms", mode="before")
+    @classmethod
+    def no_forms(cls, value):
+        # The LLM writes `"forms": null` for words that are not verbs.
+        return {} if value is None else value
+
+    @field_validator("translations", "examples", mode="before")
+    @classmethod
+    def no_items(cls, value):
+        return [] if value is None else value
 
 
 def candidates_for(word: str) -> list[str]:
