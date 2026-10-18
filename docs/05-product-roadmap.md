@@ -32,6 +32,8 @@ Exam media (~800 MB) on PVC `dutchpal-media`, served at `/dutchpal-api/media`.
 - Study Book: sidebar layout, book categories, markdown texts, collapsible word lists,
   playable `fill_gap` / `choose_option` exercises.
 - Exams: A2/B1/B2 section by section; exam mode (official timer + reminders), free mode, review.
+- Writing feedback: Schrijven answers scored on the official criteria, with corrections,
+  an improved text and links to grammar units (`POST /writing/evaluate`, not stored yet).
 - Vocab Game: words from the books, one-sentence examples, table + flashcards.
 - Practice: LLM quiz as validated JSON, interactive with score.
 - Chat: history in the session, Enter to send, loading and error states.
@@ -56,7 +58,6 @@ Exam media (~800 MB) on PVC `dutchpal-media`, served at `/dutchpal-api/media`.
 - [ ] Daily practice session (due words + one exercise + one short text).
 - [ ] Listening: TTS for dialogues and stories (e.g. Piper Dutch voices).
 - [ ] "Ask the chapter": questions about the open chapter, answers with citations.
-- [ ] Writing feedback linked to grammar units.
 - [ ] Admin page to review and fix generated content.
 - [ ] Ops: remove the unused .NET core API from the deploy.
 - [ ] Builders write the book `category` and chapter `duration_minutes` fields

@@ -202,6 +202,7 @@ curl -fsS -X POST https://dutchpal.lontray.art/dutchpal-api/chat \
 | --- | --- | --- | --- | --- |
 | `POST /dutchpal-api/chat` | Chat UI | OpenAI `gpt-5-mini` agent (reasoning `low`) | tools can call OpenAI embeddings or OpenAI `gpt-5-mini` | OpenAI failure -> `503` |
 | `POST /dutchpal-api/quiz` | Quiz UI | OpenAI `gpt-5-mini` agent, structured JSON output, validated (one retry) | none | OpenAI failure -> `503` |
+| `POST /dutchpal-api/writing/evaluate` | Exams UI (Schrijven review) | DB: the exercise's criteria + grammar unit titles; OpenAI `gpt-5-mini` (reasoning `medium`), JSON validated (one retry), scores clamped to the criteria's maxima, unknown grammar units dropped | none | OpenAI failure -> `503`; unreadable JSON -> `502` |
 | `POST /dutchpal-api/vocabulary` | Vocabulary UI | DB query (`vocabulary`, examples from `dialogues`/`exercises`), JSON rows; OpenAI `text-embedding-ada-002` if `message` exists | none | OpenAI failure -> `503` |
 | `POST /dutchpal-api/translate` | Translation UI | Groq `gpt-oss-20b` -> fallback `gpt-5-nano` | one retry on unreadable JSON | OpenAI failure -> `503`; unreadable JSON -> `502` |
 | `POST /dutchpal-api/word/lookup` | Translation UI (word) | DB: `vocab_entries`, `vocabulary` | Groq `gpt-oss-20b` -> fallback `gpt-5-nano` fills missing fields (JSON, one retry) | stored data returned without examples; nothing stored -> `503` / `502` |
