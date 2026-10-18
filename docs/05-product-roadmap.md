@@ -61,6 +61,10 @@ Exam media (~800 MB) on PVC `dutchpal-media`, served at `/dutchpal-api/media`.
       browser voice unless Settings → General "Use advanced paid voice service" is on. In review;
       needs `AZURE_SPEECH_KEY` (F0 tier) before deploy, see
       [01-production-deployment.md](01-production-deployment.md#text-to-speech).
+- [ ] Word lookup: English meanings, part of speech and examples from the Azure Translator
+      dictionary (free F0) before the LLM; the LLM only fills what is still empty. In review; needs
+      `AZURE_TRANSLATOR_KEY` before deploy, see
+      [01-production-deployment.md](01-production-deployment.md#translator-dictionary).
 - [ ] "Ask the chapter": questions about the open chapter, answers with citations.
 - [ ] Admin page to review and fix generated content.
 - [ ] Ops: remove the unused .NET core API from the deploy.
